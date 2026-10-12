@@ -39,3 +39,134 @@
 
 /* Florida Poly-inspired violet polish */
 :root{--bg:#faf8fd;--surface-alt:#f7f3fc;--border:#e8e0f0}:root[data-theme="dark"]{--bg:#14101c;--surface:#20182d;--surface-alt:#2a2039;--border:#403151;--ink:#f5efff}.nav-link.active{background:var(--accent-bg)}.org-avatar{background:#6326a6!important;color:white!important}.role-controls{flex-wrap:wrap}.game-manager-panel{margin-top:20px}.game-pill{display:inline-block;padding:6px 11px;border-radius:12px;background:var(--accent-bg);color:var(--accent);font-weight:700}
+
+/* Match the device setting before JavaScript initializes. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    color-scheme: dark;
+    --bg:#14101c;--surface:#20182d;--surface-alt:#2a2039;--ink:#f5efff;
+    --muted:#9ba8b8;--border:#403151;--accent:#bd94ed;--accent-bg:#332445;
+    --green:#79d4ac;--green-bg:#1f3931;--red:#f3a1a6;--red-bg:#402b34;--shadow:none;
+  }
+}
+
+/* Clean sidebar spacing after removing the unused organization selector. */
+.sidebar .nav-heading:first-of-type{margin-top:4px}
+
+/* Responsive EsportsHub portal (mobile and tablet) */
+html{scroll-padding-top:75px;-webkit-text-size-adjust:100%}
+body{overflow-x:hidden}
+.app-shell,.main-column,.page-container,[data-panel],.eh-panel{min-width:0}
+.eh-panel img,.page-container img{max-width:100%;height:auto}
+.eh-panel input,.eh-panel select,.eh-panel textarea,.eh-panel button{max-width:100%}
+.eh-week-wrap{max-width:100%;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y}
+.eh-week-grid{min-width:610px}
+.eh-week-grid button.cell{touch-action:manipulation;min-height:27px}
+.mobile-menu{touch-action:manipulation}
+@media(max-width:900px){
+  .eh-grid.two{grid-template-columns:minmax(0,1fr)}
+  .eh-login-main{grid-template-columns:1fr;max-width:620px}
+  .eh-login-copy h1{font-size:clamp(30px,7vw,42px)}
+  .top-actions{min-width:0}
+}
+@media(max-width:760px){
+  .sidebar{width:min(280px,85vw);left:0;top:0;bottom:0;height:100dvh;transform:translateX(-105%);transition:transform .2s ease;overflow-y:auto;overscroll-behavior:contain;z-index:51;box-shadow:12px 0 30px #0000}
+  .sidebar.open{transform:translateX(0);left:0;box-shadow:12px 0 30px #0003}
+  .mobile-overlay.show{display:block;z-index:50;background:rgba(12,8,19,.65)}
+  body.mobile-nav-open{overflow:hidden}
+  .topbar{position:sticky;top:0;z-index:12;min-height:60px;padding:0 14px;gap:10px}
+  .top-left{min-width:0;overflow:hidden;white-space:nowrap}
+  #breadcrumbCurrent{overflow:hidden;text-overflow:ellipsis}
+  .top-actions{flex-shrink:0}
+  #authStatus{display:none}
+  #logout{white-space:nowrap;padding:8px 10px}
+  .page-container{padding:20px 13px 48px;width:100%;overflow-wrap:anywhere}
+  .eh-heading{margin:9px 0 17px}
+  .eh-heading h1{font-size:clamp(23px,6vw,30px)}
+  .eh-panel{padding:16px;border-radius:12px}
+  .eh-grid{gap:12px;margin:12px 0}
+  .eh-stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .eh-stats strong{font-size:21px;overflow-wrap:anywhere}
+  .eh-row{align-items:stretch;flex-wrap:wrap}
+  .eh-row>*{min-width:0}
+  .eh-login-header{min-height:65px;height:auto;padding:10px 17px}
+  .eh-login-main{width:100%;padding:24px 16px 36px;gap:20px}
+  .eh-login-copy h1{margin:8px 0;font-size:33px;line-height:1.14}
+  .eh-login-copy p{line-height:1.55;margin:8px 0}
+  .eh-login-form .eh-panel{padding:16px}
+  .eh-login-footer{padding:15px}
+  .eh-week-wrap{margin-top:12px;max-height:min(65dvh,550px)}
+  .eh-week-grid{grid-template-columns:58px repeat(7,76px);min-width:590px}
+  .eh-week-grid .head{font-size:11px}
+  .eh-week-grid .cell{min-height:28px}
+  .eh-week-grid .time{font-size:10px;padding:6px 3px}
+}
+@media(max-width:430px){
+  .eh-stats{grid-template-columns:minmax(0,1fr)}
+  .eh-login-copy h1{font-size:29px}
+  .eh-login-brand strong{font-size:16px}
+  .eh-login-brand small{font-size:11px}
+  .eh-panel input,.eh-panel select,.eh-panel textarea{font-size:16px}
+  .eh-btn{min-height:42px}
+}
+@media(prefers-reduced-motion:reduce){.sidebar{transition:none}}
+
+/* Fix: visible, tappable navigation trigger on phones/tablets. */
+#menuButton{align-items:center;justify-content:center;min-width:44px;min-height:44px;color:var(--ink);border:1px solid var(--border);background:var(--surface-alt);flex-shrink:0}
+#menuButton svg{width:23px;height:23px;display:block;stroke:currentColor}
+@media(max-width:900px){
+  #menuButton{display:flex!important;position:relative;z-index:14}
+  .sidebar{position:fixed;left:0;top:0;bottom:0;width:min(280px,85vw);height:100dvh;transform:translateX(-105%);transition:transform .2s ease;z-index:51;overflow-y:auto;box-shadow:none}
+  .sidebar.open{transform:translateX(0);box-shadow:12px 0 30px #0003}
+  .mobile-overlay.show{display:block;position:fixed;inset:0;background:rgba(12,8,19,.65);z-index:50}
+  .topbar{position:sticky;top:0;z-index:12}
+}
+@media(min-width:901px){#menuButton{display:none!important}}
+
+
+/* Clerk sign-in is embedded, so its intrinsic card width must not exceed the portal. */
+.eh-login-main, .eh-login-form, .eh-login-form .eh-auth,
+.eh-login-form .eh-grid, .eh-login-form .eh-panel,
+#clerk-sign-in { min-width:0; max-width:100%; box-sizing:border-box; }
+#clerk-sign-in { width:100%; overflow-wrap:normal; }
+#clerk-sign-in .cl-rootBox,
+#clerk-sign-in .cl-cardBox,
+#clerk-sign-in .cl-card,
+#clerk-sign-in .cl-main,
+#clerk-sign-in .cl-form,
+#clerk-sign-in .cl-formField,
+#clerk-sign-in .cl-formFieldInput,
+#clerk-sign-in .cl-formButtonPrimary,
+#clerk-sign-in .cl-socialButtons,
+#clerk-sign-in .cl-socialButtonsBlockButton {
+  box-sizing:border-box;
+  min-width:0;
+  max-width:100%!important;
+}
+#clerk-sign-in .cl-rootBox,
+#clerk-sign-in .cl-cardBox,
+#clerk-sign-in .cl-card { width:100%!important; }
+#clerk-sign-in .cl-formFieldInput {font-size:16px;}
+@media(max-width:900px){
+  .eh-login-main {max-width:580px; grid-template-columns:minmax(0,1fr);}
+}
+@media(max-width:600px){
+  .eh-login-main {padding:24px 12px 32px; width:100%; gap:18px;}
+  .eh-login-form {width:100%;}
+  .eh-login-form .eh-panel {
+    padding:0!important;
+    background:transparent;
+    border:0;
+    box-shadow:none;
+  }
+  /* Clerk already provides its own card. Avoid a second frame on narrow screens. */
+  .eh-login-form .eh-panel > h2 {display:none;}
+  #clerk-sign-in .cl-card {padding:clamp(14px,4vw,24px)!important;}
+  #clerk-sign-in .cl-footer {max-width:100%;}
+  #clerk-sign-in .cl-socialButtonsBlockButton,
+  #clerk-sign-in .cl-formButtonPrimary {min-height:44px;}
+}
+@media(max-width:360px){
+  .eh-login-main {padding-left:8px;padding-right:8px;}
+  #clerk-sign-in .cl-card {padding:12px!important;}
+}
