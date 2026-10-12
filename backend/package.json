@@ -1,0 +1,17 @@
+{
+  "name": "esportshub-api",
+  "version": "0.7.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "@clerk/backend": "^2.0.0",
+    "@libsql/client": "^0.15.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}
