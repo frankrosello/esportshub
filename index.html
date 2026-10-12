@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#f7f8fb" />
+  <title>EsportsHub — Club operations</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <script defer src="js/app.js"></script>
+  <script defer src="js/roles.js"></script>
+  <script defer src="js/organization.js"></script>
+  <script defer src="js/games.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <a href="#dashboard" class="brand" data-page-link="dashboard" aria-label="EsportsHub home"><span class="brand-mark">E<span class="brand-dot">.</span></span><span><strong>EsportsHub</strong><small>Club operations</small></span></a>
+      <div class="org-switch"><span class="org-avatar">FP</span><span class="org-name"><strong>Florida Poly Esports</strong><small>Organization workspace</small></span><span class="chevron">⌄</span></div>
+      <div class="nav-heading">WORKSPACE</div>
+      <nav class="nav" aria-label="Main navigation">
+        <a class="nav-link active" href="#dashboard" data-page-link="dashboard"><span class="nav-icon" data-icon="grid"></span>Overview</a>
+        <a class="nav-link" href="#teams" data-page-link="teams"><span class="nav-icon" data-icon="users"></span><span class="team-nav-label">Teams</span></a>
+        <a class="nav-link" href="#events" data-page-link="events"><span class="nav-icon" data-icon="calendar"></span>Schedule</a>
+        <a class="nav-link" href="#availability" data-page-link="availability"><span class="nav-icon" data-icon="clock"></span>Availability</a>
+        <a class="nav-link" href="#reports" data-page-link="reports"><span class="nav-icon" data-icon="file"></span>Reports <span class="nav-number" id="navReports">0</span></a>
+        <a class="nav-link" href="#attendance" data-page-link="attendance"><span class="nav-icon" data-icon="check"></span>Attendance</a>
+        <a class="nav-link" href="#matches" data-page-link="matches"><span class="nav-icon" data-icon="trophy"></span>Matches</a>
+      </nav>
+      <div class="nav-heading second-heading">MANAGEMENT</div>
+      <nav class="nav"><a class="nav-link" href="#issues" data-page-link="issues"><span class="nav-icon" data-icon="file"></span>Player issues</a></nav>
+      <nav class="nav"><a class="nav-link" href="#profile" data-page-link="profile"><span class="nav-icon" data-icon="users"></span>My profile</a><a class="nav-link" href="#settings" data-page-link="settings"><span class="nav-icon" data-icon="settings"></span>Settings</a></nav>
+      <div class="sidebar-footer"><div class="avatar avatar-small">FR</div><div><strong>Demo Administrator</strong><small>Local preview mode</small></div><span class="online-dot"></span></div>
+    </aside>
+    <div class="main-column">
+      <header class="topbar"><div class="top-left"><button class="icon-btn mobile-menu" id="menuButton" aria-label="Open navigation"><span data-icon="menu"></span></button><span class="breadcrumb">Workspace</span><span class="breadcrumb-slash">/</span><strong id="breadcrumbCurrent">Overview</strong></div><div class="top-actions"><span class="demo-tag"><span class="demo-indicator"></span>Local demo</span><div class="role-controls"><label for="roleSelector">View as</label><select id="roleSelector" class="select" aria-label="Demo role"><option value="admin">Admin</option><option value="game_manager">Game Manager</option><option value="captain">Captain</option><option value="player">Player</option></select><select id="demoManagerSelect" class="select" aria-label="Demo game manager identity" hidden></select><select id="demoAdminSelect" class="select" aria-label="Demo administrator identity" hidden></select><select id="demoTeamSelect" class="select" aria-label="Demo assigned team"></select><select id="demoPlayerSelect" class="select" aria-label="Demo player identity"></select></div><button class="icon-btn" id="themeButton" aria-label="Toggle color theme" title="Toggle theme"><span data-icon="moon"></span></button><div class="avatar">FR</div></div></header>
+      <div class="prototype-warning"><strong>Prototype:</strong> Role switching is for interface testing only. No real accounts, shared data, or secure access controls. <span id="roleCaption"></span></div><main id="pageContent" class="page-container" tabindex="-1"></main>
+    </div>
+  </div>
+  <div class="mobile-overlay" id="mobileOverlay"></div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
