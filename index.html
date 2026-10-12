@@ -1,42 +1,73 @@
-<!doctype html>
+<!DOCTYPE html>
+
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="theme-color" content="#f7f8fb" />
-  <title>EsportsHub — Club operations</title>
-  <link rel="stylesheet" href="css/style.css" />
-  <script defer src="js/app.js"></script>
-  <script defer src="js/roles.js"></script>
-  <script defer src="js/organization.js"></script>
-  <script defer src="js/games.js"></script>
-</head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<meta content="#f7f8fb" name="theme-color"/>
+<title>EsportsHub — Sign in</title>
+<link href="css/style.css" rel="stylesheet"/>
+
+
+
+
+<style>
+.hidden{display:none!important}.eh-heading{margin:14px 0 22px}.eh-heading h1{font-family:Manrope,sans-serif;font-size:clamp(24px,3vw,34px);margin:5px 0 8px}.eh-heading p,.eh-muted{color:var(--muted);line-height:1.5}.eh-kicker{font-size:11px;letter-spacing:.12em;font-weight:800;color:var(--accent)}.eh-panel{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;min-width:0}.eh-panel h2{font-family:Manrope,sans-serif;font-size:16px;margin:0 0 13px}.eh-panel h3{font-size:14px;margin:20px 0 11px}.eh-grid{display:grid;gap:18px;margin:18px 0}.eh-grid.two{grid-template-columns:repeat(2,minmax(0,1fr))}.eh-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.eh-stats small{display:block;color:var(--muted);font-weight:650}.eh-stats strong{display:block;font-size:25px;margin:10px 0 0}.eh-btn{border:0;border-radius:8px;padding:10px 16px;background:#6326a6;color:#fff;font-weight:700;cursor:pointer}.eh-btn.tiny{padding:8px 12px;font-size:12px}.eh-panel input,.eh-panel textarea,.eh-panel select{display:block;width:100%;min-height:39px;border:1px solid var(--border);background:var(--surface-alt);color:var(--ink);border-radius:8px;padding:10px;margin:8px 0 13px}.eh-panel textarea{min-height:100px}.eh-panel label{display:block;font-size:12px;font-weight:700}.eh-panel form{margin-top:12px}.eh-item{border-bottom:1px solid var(--border);padding:12px 0;line-height:1.5}.eh-item:last-child{border-bottom:0}.eh-pick{width:100%;display:block;text-align:left;border:1px solid var(--border);border-radius:9px;padding:12px;margin:7px 0;background:var(--surface-alt);color:var(--ink);cursor:pointer}.eh-pick.active{border-color:var(--accent);background:var(--accent-bg)}.eh-alert{padding:12px 16px;border:1px solid var(--border);border-radius:9px;margin:10px 0 17px;color:var(--muted);background:var(--surface)}.eh-alert:empty{display:none}.eh-auth{max-width:1000px;margin:10px auto}.eh-row{display:flex;justify-content:space-between;align-items:center;gap:12px}.eh-week-wrap{overflow:auto;max-height:650px;margin-top:18px;border:1px solid var(--border);border-radius:8px}.eh-week-grid{display:grid;grid-template-columns:64px repeat(7,minmax(58px,1fr));min-width:550px;user-select:none}.eh-week-grid .cell{border-right:1px solid var(--border);border-bottom:1px solid var(--border);min-height:22px;background:var(--surface);font-size:10px;color:var(--muted)}.eh-week-grid .time{padding:4px 7px;background:var(--surface-alt);text-align:right}.eh-week-grid .head{position:sticky;top:0;z-index:1;background:var(--surface-alt);font-weight:700;text-align:center;padding:10px 4px}.eh-week-grid button.cell{border-radius:0;cursor:crosshair;padding:0}.eh-week-grid button.cell.chosen{background:#8752c6}.eh-week-grid button.cell:hover{outline:1px solid var(--accent);outline-offset:-1px}.online-label{font-size:11px;color:var(--muted)}.sidebar-footer{display:flex;gap:10px;align-items:center}.nav-link{gap:3px}.eh-selected{color:var(--muted)}@media(max-width:850px){.eh-grid.two{grid-template-columns:1fr}.eh-stats{grid-template-columns:1fr 1fr}.online-label{display:none}}@media(max-width:550px){.eh-stats{grid-template-columns:1fr}.eh-panel{padding:16px}}
+
+/* Standalone, device-theme-aware login screen. Dashboard is hidden until authorized. */
+.eh-login-page{min-height:100svh;display:flex;flex-direction:column;background:var(--bg,#faf8fd);color:var(--ink,#251b32)}
+.eh-login-header{height:80px;padding:0 clamp(20px,5vw,70px);display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);background:var(--surface)}
+.eh-login-brand{display:flex;align-items:center;gap:12px}.eh-login-brand strong{display:block;font-size:18px;letter-spacing:-.04em}.eh-login-brand small{display:block;color:var(--muted);font-size:12px;margin-top:3px}
+.eh-login-mark{display:flex;align-items:center;justify-content:center;width:43px;height:43px;background:#6326a6;color:white;border-radius:12px;font-size:28px;font-weight:850;letter-spacing:-.08em}.eh-login-mark span{color:#e2c9ff}.eh-login-secure{font-size:12px;color:var(--muted)}
+.eh-login-main{width:min(1120px,100%);margin:auto;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,480px);align-items:center;gap:clamp(26px,5vw,80px);padding:56px 26px}
+.eh-login-copy h1{font-size:clamp(42px,5vw,70px);line-height:1.08;letter-spacing:-.065em;margin:15px 0 22px}.eh-login-copy p{max-width:430px;font-size:16px;line-height:1.8;color:var(--muted)}.eh-login-caption{border-top:1px solid var(--border);max-width:400px;margin-top:32px;padding-top:18px;font-size:12px;color:var(--muted)}
+.eh-login-form{min-width:0}.eh-login-form .eh-auth{margin:0;max-width:none}.eh-login-form .eh-grid.two{grid-template-columns:minmax(0,1fr);gap:12px;margin:0}.eh-login-form .eh-panel{padding:24px;border-radius:16px;box-shadow:0 10px 35px rgba(35,19,60,.05)}.eh-login-form .eh-panel h2{font-size:18px}.eh-login-form #clerk-sign-in,.eh-login-form #clerk-sign-up{min-height:40px}.eh-login-form .eh-panel:has(#clerk-sign-up){margin-top:5px}
+.eh-login-message:not(:empty){margin-top:15px;padding:12px;background:var(--surface);border:1px solid var(--border);border-radius:9px;font-size:13px;color:var(--muted)}
+.eh-login-footer{padding:20px;text-align:center;border-top:1px solid var(--border);color:var(--muted);font-size:12px}
+@media(max-width:800px){.eh-login-main{grid-template-columns:1fr;max-width:540px;padding:35px 18px}.eh-login-copy h1{font-size:38px}.eh-login-copy p{font-size:14px}.eh-login-caption{display:none}.eh-login-header{height:70px;padding:0 20px}}
+@media(max-width:420px){.eh-login-secure{display:none}.eh-login-form .eh-panel{padding:15px}}
+</style></head>
 <body>
-  <div class="app-shell">
-    <aside class="sidebar" id="sidebar">
-      <a href="#dashboard" class="brand" data-page-link="dashboard" aria-label="EsportsHub home"><span class="brand-mark">E<span class="brand-dot">.</span></span><span><strong>EsportsHub</strong><small>Club operations</small></span></a>
-      <div class="org-switch"><span class="org-avatar">FP</span><span class="org-name"><strong>Florida Poly Esports</strong><small>Organization workspace</small></span><span class="chevron">⌄</span></div>
-      <div class="nav-heading">WORKSPACE</div>
-      <nav class="nav" aria-label="Main navigation">
-        <a class="nav-link active" href="#dashboard" data-page-link="dashboard"><span class="nav-icon" data-icon="grid"></span>Overview</a>
-        <a class="nav-link" href="#teams" data-page-link="teams"><span class="nav-icon" data-icon="users"></span><span class="team-nav-label">Teams</span></a>
-        <a class="nav-link" href="#events" data-page-link="events"><span class="nav-icon" data-icon="calendar"></span>Schedule</a>
-        <a class="nav-link" href="#availability" data-page-link="availability"><span class="nav-icon" data-icon="clock"></span>Availability</a>
-        <a class="nav-link" href="#reports" data-page-link="reports"><span class="nav-icon" data-icon="file"></span>Reports <span class="nav-number" id="navReports">0</span></a>
-        <a class="nav-link" href="#attendance" data-page-link="attendance"><span class="nav-icon" data-icon="check"></span>Attendance</a>
-        <a class="nav-link" href="#matches" data-page-link="matches"><span class="nav-icon" data-icon="trophy"></span>Matches</a>
-      </nav>
-      <div class="nav-heading second-heading">MANAGEMENT</div>
-      <nav class="nav"><a class="nav-link" href="#issues" data-page-link="issues"><span class="nav-icon" data-icon="file"></span>Player issues</a></nav>
-      <nav class="nav"><a class="nav-link" href="#profile" data-page-link="profile"><span class="nav-icon" data-icon="users"></span>My profile</a><a class="nav-link" href="#settings" data-page-link="settings"><span class="nav-icon" data-icon="settings"></span>Settings</a></nav>
-      <div class="sidebar-footer"><div class="avatar avatar-small">FR</div><div><strong>Demo Administrator</strong><small>Local preview mode</small></div><span class="online-dot"></span></div>
-    </aside>
-    <div class="main-column">
-      <header class="topbar"><div class="top-left"><button class="icon-btn mobile-menu" id="menuButton" aria-label="Open navigation"><span data-icon="menu"></span></button><span class="breadcrumb">Workspace</span><span class="breadcrumb-slash">/</span><strong id="breadcrumbCurrent">Overview</strong></div><div class="top-actions"><span class="demo-tag"><span class="demo-indicator"></span>Local demo</span><div class="role-controls"><label for="roleSelector">View as</label><select id="roleSelector" class="select" aria-label="Demo role"><option value="admin">Admin</option><option value="game_manager">Game Manager</option><option value="captain">Captain</option><option value="player">Player</option></select><select id="demoManagerSelect" class="select" aria-label="Demo game manager identity" hidden></select><select id="demoAdminSelect" class="select" aria-label="Demo administrator identity" hidden></select><select id="demoTeamSelect" class="select" aria-label="Demo assigned team"></select><select id="demoPlayerSelect" class="select" aria-label="Demo player identity"></select></div><button class="icon-btn" id="themeButton" aria-label="Toggle color theme" title="Toggle theme"><span data-icon="moon"></span></button><div class="avatar">FR</div></div></header>
-      <div class="prototype-warning"><strong>Prototype:</strong> Role switching is for interface testing only. No real accounts, shared data, or secure access controls. <span id="roleCaption"></span></div><main id="pageContent" class="page-container" tabindex="-1"></main>
-    </div>
-  </div>
-  <div class="mobile-overlay" id="mobileOverlay"></div>
-  <div id="toast" class="toast" role="status" aria-live="polite"></div>
-</body>
+<div id="loginPage" class="eh-login-page">
+  <header class="eh-login-header"><div class="eh-login-brand"><span class="eh-login-mark">E<span>.</span></span><div><strong>EsportsHub</strong><small>Florida Poly Esports</small></div></div><span class="eh-login-secure">Secure member access</span></header>
+  <main class="eh-login-main"><div class="eh-login-copy"><span class="eh-kicker">FLORIDA POLY ESPORTS</span><h1>Your team.<br>Your workspace.</h1><p>Sign in to view your roster, manage your schedule, coordinate practices, and stay connected with your team.</p><div class="eh-login-caption">A private workspace for Florida Poly Esports members.</div></div>
+    <div class="eh-login-form"><section class="eh-auth" id="guest"><div class="eh-grid two"><article class="eh-panel"><h2>Sign in</h2><div id="clerk-sign-in"></div></article><p class="eh-muted" style="margin:16px 0 0">New to EsportsHub? Ask your team captain or game manager for an invitation.</p></div></section><div id="guestNotice" class="eh-login-message" role="status" aria-live="polite"></div></div>
+  </main><footer class="eh-login-footer">EsportsHub · Florida Poly Esports</footer>
+</div>
+<div class="app-shell hidden" id="dashboardShell">
+<aside class="sidebar" id="sidebar">
+<a aria-label="EsportsHub home" class="brand" href="#dashboard"><span class="brand-mark">E<span class="brand-dot">.</span></span><span><strong>EsportsHub</strong><small>Club operations</small></span></a>
+<div class="nav-heading">WORKSPACE</div><nav aria-label="Main navigation" class="nav">
+<a class="nav-link active" data-screen="dashboard" href="#dashboard">◫   Overview</a>
+<a class="nav-link" data-screen="teams" href="#teams">♙   Teams</a>
+<a class="nav-link" data-screen="schedule" href="#schedule">▦   Schedule</a>
+<a class="nav-link" data-screen="availability" href="#availability">◷   Availability</a>
+<a class="nav-link" data-screen="reports" href="#reports">▤   Reports</a>
+<a class="nav-link" data-screen="concerns" href="#concerns">♢   Player concerns</a>
+</nav><div class="nav-heading second-heading">MANAGEMENT</div><nav class="nav">
+<a class="nav-link" data-screen="invitations" href="#invitations">✉   Invitations</a>
+<a class="nav-link" data-screen="settings" href="#settings">⚙   Settings</a></nav>
+
+
+<div class="sidebar-footer"><div class="avatar avatar-small" id="sidebarAvatar">EH</div><div><strong id="sidebarName">Not signed in</strong><small id="sidebarRole">Clerk authentication</small></div></div>
+</aside>
+<div class="main-column">
+<header class="topbar"><div class="top-left"><button aria-label="Open navigation" class="icon-btn mobile-menu" id="menuButton" aria-expanded="false" aria-controls="sidebar" type="button"><svg aria-hidden="true" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button><span class="breadcrumb">Workspace</span><span class="breadcrumb-slash">/</span><strong id="breadcrumbCurrent">Overview</strong></div><div class="top-actions"><span class="online-label" id="authStatus">Connecting to Clerk…</span><button class="eh-btn tiny hidden" id="logout" type="button">Sign out</button></div></header>
+<main class="page-container" id="pageContent" tabindex="-1"><div aria-live="polite" class="eh-alert" id="notice" role="status">Connecting to authentication…</div>
+
+<section class="hidden" id="signed">
+<section data-panel="dashboard"><div class="eh-heading"><span class="eh-kicker">ORGANIZATION OVERVIEW</span><h1>Good to see you, <span id="welcome">member</span></h1><p id="roles"></p></div><div class="eh-stats"><div class="eh-panel"><small>Assigned games</small><strong id="statGames">0</strong></div><div class="eh-panel"><small>Accessible teams</small><strong id="statTeams">0</strong></div><div class="eh-panel"><small>Role</small><strong id="statRole">—</strong></div></div><div class="eh-grid two"><article class="eh-panel"><h2>My games</h2><div id="games"></div></article><article class="eh-panel"><h2>My teams</h2><div id="teams"></div></article></div></section>
+<section class="hidden" data-panel="teams"><div class="eh-heading"><span class="eh-kicker">ROSTERS &amp; MANAGEMENT</span><h1>Teams</h1><p>Select a team to view its members and manage club activity.</p></div><div class="eh-grid two"><article class="eh-panel"><h2>Team selection</h2><div id="teamsMirror"></div></article><article class="eh-panel"><h2>Manage organization</h2><form class="hidden" id="gameForm"><h3>Create a game</h3><input name="name" placeholder="Game name" required=""/><button class="eh-btn">Create game</button></form><form class="hidden" id="teamForm"><h3>Create a team</h3><select id="createTeamGame" name="gameId"></select><input name="name" placeholder="Team name" required=""/><textarea name="description" placeholder="Description"></textarea><button class="eh-btn">Create team</button></form></article></div><article class="eh-panel" id="selected" style="margin-top:18px"><h2 id="teamTitle">Select a team</h2><p class="eh-muted" id="teamDesc">Choose a team to see its roster.</p><h3>Roster</h3><div id="members"></div></article></section>
+<section class="hidden" data-panel="schedule"><div class="eh-heading"><span class="eh-kicker">TEAM OPERATIONS</span><h1>Schedule</h1><p>Practices, scrims, matches and events for your selected team.</p></div><article class="eh-panel"><p class="eh-selected"></p><div id="events"></div><form class="hidden" id="eventForm"><h3>Schedule an event</h3><select name="type"><option value="practice">Practice</option><option value="scrim">Scrim</option><option value="match">Match</option><option value="event">Event</option></select><input name="title" placeholder="Event title" required=""/><input name="opponent" placeholder="Opponent (optional)"/><input name="startsAt" required="" type="datetime-local"/><textarea name="notes" placeholder="Notes"></textarea><button class="eh-btn">Schedule event</button></form></article></section>
+<section class="hidden" data-panel="availability"><div class="eh-heading"><span class="eh-kicker">WEEKLY PLANNING</span><h1>Availability</h1><p>Click or drag to mark available half-hour blocks. The grid saves to Turso.</p></div><article class="eh-panel"><p class="eh-selected"></p><form id="availabilityForm"><div class="eh-row"><strong>Your weekly availability</strong><button class="eh-btn" type="submit">Save availability</button></div><div class="eh-week-wrap"><div aria-label="Weekly availability by 30 minute slot" class="eh-week-grid" id="weekGrid" role="group"></div></div><textarea aria-label="Selected slots" class="hidden" name="slots"></textarea><p class="eh-muted">Each row is 30 minutes. Week starts Monday. Colored cells are available.</p></form></article></section>
+<section class="hidden" data-panel="reports"><div class="eh-heading"><span class="eh-kicker">TEAM KNOWLEDGE</span><h1>Scrim &amp; VOD reports</h1><p>Reports are shared with everyone authorized for the selected team.</p></div><article class="eh-panel"><p class="eh-selected"></p><div id="reports"></div><form class="hidden" id="reportForm"><h3>Publish a team report</h3><select name="type"><option value="scrim">Scrim</option><option value="vod">VOD review</option><option value="match">Match</option><option value="practice">Practice</option></select><input name="title" placeholder="Report title" required=""/><textarea name="content" placeholder="Team-visible notes" required=""></textarea><button class="eh-btn">Publish report</button></form></article></section>
+<section class="hidden" data-panel="concerns"><div class="eh-heading"><span class="eh-kicker">PRIVATE COMMUNICATION</span><h1>Player concerns</h1><p>Submissions are visible only to authorized game managers and administrators.</p></div><div class="eh-grid two"><article class="eh-panel"><h2>Submit a concern</h2><form id="concernForm"><textarea name="details" placeholder="Description" required=""></textarea><button class="eh-btn">Submit privately</button></form></article><article class="eh-panel hidden" id="review"><h2>Manager review</h2><div id="concerns"></div></article></div><p class="eh-muted">During testing, avoid including sensitive real-world information.</p></section>
+<section class="hidden" data-panel="invitations"><div class="eh-heading"><span class="eh-kicker">ACCESS MANAGEMENT</span><h1>Invite members</h1><p>Issue role-scoped invitations that expire in 72 hours.</p></div><article class="eh-panel" id="staff"><form id="inviteForm"><label>Role<select name="role"><option value="player">Player</option><option value="captain">Captain</option><option value="game_manager">Game Manager</option><option value="admin">Administrator</option></select></label><label>Game<select id="inviteGame" name="gameId"></select></label><label>Team<select id="inviteTeam" name="teamId"></select></label><button class="eh-btn">Create one-use invitation</button></form><div id="inviteResult"></div></article></section>
+<section class="hidden" data-panel="settings"><div class="eh-heading"><span class="eh-kicker">WORKSPACE</span><h1>Settings</h1></div><article class="eh-panel"><h2>Backend connection</h2><p class="eh-muted">Configured Cloudflare Workers endpoint. Never enter Turso or Clerk secret keys here.</p><label>Worker API URL<input autocomplete="url" id="api"/></label><button class="eh-btn" id="saveApi">Save endpoint</button><h3>Account</h3><p>Authentication is managed through Clerk. Role assignments come from Turso.</p></article></section>
+</section></main>
+</div>
+</div>
+<div class="mobile-overlay" id="mobileOverlay" aria-hidden="true"></div>
+<div aria-live="polite" class="toast" id="toast" role="status"></div>
+<script crossorigin="anonymous" defer="" src="https://amazed-insect-6169.clerk.accounts.dev/npm/@clerk/ui@1/dist/ui.browser.js"></script><script crossorigin="anonymous" data-clerk-publishable-key="pk_test_YW1hemVkLWluc2VjdC02MTY5LmNsZXJrLmFjY291bnRzLmRldiQ" defer="" src="https://amazed-insect-6169.clerk.accounts.dev/npm/@clerk/clerk-js@6/dist/clerk.browser.js"></script><script defer="" src="js/portal.js"></script></body>
 </html>

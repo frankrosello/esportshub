@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>EsportsHub · Administrator Setup</title>
+  <style>
+    :root{color-scheme:dark;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100vh;background:radial-gradient(circle at 70% 0%,#3e2467 0%,transparent 42%),#100e19;color:#f9f7ff;padding:40px 20px}
+    main{max-width:540px;margin:0 auto}
+    .brand{display:flex;align-items:center;gap:12px;font-size:14px;font-weight:750;letter-spacing:.08em;margin-bottom:32px}
+    .symbol{display:grid;place-items:center;width:42px;height:42px;border:1px solid #7955b4;background:#513186;border-radius:13px;font-weight:900}
+    .panel{border:1px solid #47395d;background:rgba(26,22,40,.92);border-radius:19px;padding:30px;box-shadow:0 18px 60px #0005}
+    h1{font-size:29px;letter-spacing:-.045em;line-height:1.15;margin:0 0 12px}
+    p{color:#bcb3cf;line-height:1.65;margin:0 0 22px;font-size:14px}
+    .step{font-size:12px;letter-spacing:.14em;color:#c4a7fb;text-transform:uppercase;font-weight:800;margin-bottom:12px}
+    label{display:block;margin:20px 0 7px;color:#e1d6f2;font-weight:650;font-size:13px}
+    input{width:100%;background:#140f21;border:1px solid #605276;border-radius:10px;color:#fff;font:inherit;padding:13px 14px;outline:none}
+    input:focus{border-color:#ab85ee;box-shadow:0 0 0 3px #7a42d533}
+    button{font:inherit;cursor:pointer}
+    .primary{margin-top:16px;background:#8c62cf;color:#fff;border:0;border-radius:10px;font-weight:750;padding:14px 20px;width:100%}
+    .primary:disabled{opacity:.6;cursor:wait}
+    .secondary{background:none;border:1px solid #594873;border-radius:9px;color:#d6c9f3;padding:9px 13px;margin-top:15px}
+    .state{margin-top:18px;border:1px solid #6a527f;border-radius:10px;padding:13px 15px;color:#e9defa;background:#291d3b;line-height:1.5;white-space:pre-wrap;font-size:13px}
+    .state.error{border-color:#a95567;background:#3b1a28;color:#ffc9d2}
+    .state.success{border-color:#458973;background:#14362c;color:#b4f1d1}
+    .identity{padding:12px 14px;border-radius:10px;background:#252035;color:#e7daff;word-break:break-word;font-size:14px}
+    #clerk-sign-in{display:flex;justify-content:center;min-height:90px}
+    [hidden]{display:none!important}
+    footer{color:#80728f;font-size:12px;line-height:1.6;margin-top:18px;text-align:center}
+    code{color:#e4d3ff}
+  </style>
+  <script defer crossorigin="anonymous" src="https://amazed-insect-6169.clerk.accounts.dev/npm/@clerk/ui@1/dist/ui.browser.js"></script>
+  <script defer crossorigin="anonymous"
+    data-clerk-publishable-key="pk_test_YW1hemVkLWluc2VjdC02MTY5LmNsZXJrLmFjY291bnRzLmRldiQ"
+    src="https://amazed-insect-6169.clerk.accounts.dev/npm/@clerk/clerk-js@6/dist/clerk.browser.js"></script>
+</head>
+<body>
+<main>
+  <div class="brand"><span class="symbol">EH</span> ESPORTSHUB <span style="color:#9d8eaf;font-weight:500">/ SETUP</span></div>
+  <section class="panel">
+    <div class="step">One-time administrator enrollment</div>
+    <h1>Set up EsportsHub</h1>
+    <p>Sign in to your verified Clerk account, then use your existing EsportsHub bootstrap secret to become the first administrator.</p>
+    <div id="loading" class="state" role="status">Connecting to Clerk…</div>
+    <section id="signed-out" hidden>
+      <div id="clerk-sign-in"></div>
+    </section>
+    <section id="signed-in" hidden>
+      <div id="identity" class="identity"></div>
+      <button class="secondary" id="sign-out" type="button">Sign out / change account</button>
+      <form id="setup-form">
+        <label for="secret">EsportsHub bootstrap secret</label>
+        <input id="secret" type="password" autocomplete="off" required placeholder="Enter your existing BOOTSTRAP_SECRET">
+        <button id="submit" class="primary" type="submit">Create first administrator</button>
+      </form>
+    </section>
+    <div id="result" class="state" role="status" aria-live="polite" hidden></div>
+  </section>
+  <footer>Only use this page for initial enrollment. Your bootstrap secret is sent directly to your Cloudflare Worker and is not saved by this page.</footer>
+</main>
+<script>
+  const API = 'https://esportshub-api.frankierose212005.workers.dev';
+  const $ = id => document.getElementById(id);
+  let isSubmitting = false;
+  let lastSignedIn = null;
+  function message(text, type = '') {
+    const el = $('result');
+    el.textContent = text;
+    el.className = 'state' + (type ? ' ' + type : '');
+    el.hidden = !text;
+  }
+  function render() {
+    const clerk = window.Clerk;
+    const signedIn = !!(clerk && clerk.user && clerk.session);
+    $('loading').hidden = true;
+    $('signed-out').hidden = signedIn;
+    $('signed-in').hidden = !signedIn;
+    if (signedIn) {
+      $('identity').textContent = `Signed in: ${clerk.user.primaryEmailAddress?.emailAddress || clerk.user.fullName || clerk.user.id}`;
+    } else if (lastSignedIn !== false) {
+      const target = $('clerk-sign-in');
+      target.replaceChildren();
+      clerk.mountSignIn(target, { routing: 'virtual' });
+    }
+    if (lastSignedIn !== signedIn) message('');
+    lastSignedIn = signedIn;
+  }
+  window.addEventListener('load', async () => {
+    try {
+      if (!window.Clerk || !window.__internal_ClerkUICtor) throw new Error('Clerk scripts did not load. Check your internet connection or browser extensions.');
+      await window.Clerk.load({ui: {ClerkUI: window.__internal_ClerkUICtor}});
+      window.Clerk.addListener(render);
+      render();
+    } catch (e) {
+      $('loading').hidden = true;
+      message(`Could not start Clerk: ${e.message}`, 'error');
+    }
+  });
+  $('sign-out').addEventListener('click', async () => {
+    try { await window.Clerk.signOut(); render(); }
+    catch (e) { message(`Sign-out failed: ${e.message}`, 'error'); }
+  });
+  $('setup-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    if (isSubmitting) return;
+    const secret = $('secret').value;
+    isSubmitting = true;
+    $('submit').disabled = true;
+    message('Submitting secure administrator enrollment…');
+    try {
+      const session = window.Clerk.session;
+      if (!session) throw new Error('Sign in first.');
+      const bearer = await session.getToken();
+      if (!bearer) throw new Error('Could not obtain your Clerk session token. Try signing out and back in.');
+      const response = await fetch(API + '/setup', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + bearer,
+          'X-Bootstrap-Secret': secret,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({})
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || `Setup failed (HTTP ${response.status}).`);
+      $('secret').value = '';
+      $('setup-form').hidden = true;
+      message(payload.message || 'Administrator successfully enrolled.', 'success');
+    } catch (err) {
+      message(err instanceof TypeError ? 'Network/CORS error: confirm your Worker allows this page’s exact origin and is deployed.' : err.message, 'error');
+    } finally {
+      isSubmitting = false;
+      $('submit').disabled = false;
+    }
+  });
+</script>
+</body>
+</html>
