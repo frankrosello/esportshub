@@ -170,3 +170,5 @@ body{overflow-x:hidden}
   .eh-login-main {padding-left:8px;padding-right:8px;}
   #clerk-sign-in .cl-card {padding:12px!important;}
 }
+
+.eh-auth-tabs{display:flex;gap:8px;margin-bottom:18px}.eh-auth-tabs .eh-btn[aria-pressed="false"]{background:var(--surface);color:var(--ink);border:1px solid var(--border)}#enrollmentSignOut{margin-top:14px}
