@@ -1,4 +1,44 @@
 'use strict';
+'use strict';
+// One base URL for every application entry point and authentication destination.
+(function () {
+  if(window.EsportsHubRoutes)return;
+  const here = new URL(window.location.href);
+  const root = here.hostname === 'frankrosello.github.io'
+    ? new URL('https://frankrosello.github.io/esportshub/')
+    : new URL('./', here);
+  function home({invite='', auth='', hash=''}={}) {
+    const url = new URL('index.html', root);
+    if (invite) url.searchParams.set('invite', invite);
+    if (auth) url.searchParams.set('auth', auth);
+    if (hash) url.hash = hash;
+    return url.href;
+  }
+  // Canonicalize directory visits without discarding Clerk callback parameters,
+  // invitation tokens, authentication mode, or the selected dashboard section.
+  if(here.pathname===root.pathname||here.pathname===root.pathname.replace(/\/$/,'')){
+    const canonical=new URL('index.html',root);
+    canonical.search=here.search;
+    canonical.hash=here.hash;
+    window.history.replaceState(null,'',canonical.href);
+  }
+  function clerkOptions(returnUrl=home(), invite='') {
+    return {
+      signInUrl:home({invite,auth:'signin'}),
+      signUpUrl:home({invite,auth:'signup'}),
+      signInForceRedirectUrl:returnUrl,
+      signInFallbackRedirectUrl:returnUrl,
+      signUpForceRedirectUrl:returnUrl,
+      signUpFallbackRedirectUrl:returnUrl,
+      afterSignOutUrl:returnUrl,
+      afterMultiSessionSingleSignOutUrl:returnUrl
+    };
+  }
+  window.EsportsHubRoutes=Object.freeze({root:root.href,home,clerkOptions,
+    page:name=>new URL(name,root).href});
+})();
+
+'use strict';
 const $=id=>document.getElementById(id);
 const s={api:localStorage.getItem('eh_live_api')||'https://esportshub-api.frankierose212005.workers.dev',me:null,games:[],teams:[],team:null,slots:new Set(),clerkReady:false,rendering:false};
 const escapeHtml=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -10,7 +50,7 @@ const fmt=date=>{const d=new Date(date);return isNaN(d)?'Date unavailable':d.toL
 async function api(path,method='GET',body){const token=await window.Clerk?.session?.getToken();if(!token)throw Error('Sign in with Clerk first');const r=await fetch(s.api+path,{method,headers:{Authorization:`Bearer ${token}`,...(body!==undefined?{'Content-Type':'application/json'}:{})},...(body!==undefined?{body:JSON.stringify(body)}:{})});const data=await r.json().catch(()=>({}));if(!r.ok)throw Object.assign(Error(data.error||`API request failed (${r.status})`),{status:r.status});return data;}
 function listOptions(el,items,label){el.innerHTML=items.map(t=>`<option value="${escapeHtml(t.id)}">${escapeHtml(label(t))}</option>`).join('');}
 function selectedLabel(){return s.team?`${s.team.game_name} / ${s.team.name}`:'Select a team under Teams first';}
-function go(page){const screens=['dashboard','teams','schedule','availability','reports','concerns','invitations','members','settings'];if(!screens.includes(page))page='dashboard';if(!s.me&&page!=='dashboard')page='dashboard';if(page==='members'&&!admin())page='dashboard';document.querySelectorAll('[data-panel]').forEach(x=>x.classList.toggle('hidden',x.dataset.panel!==page));document.querySelectorAll('[data-screen]').forEach(x=>x.classList.toggle('active',x.dataset.screen===page));$('breadcrumbCurrent').textContent=({dashboard:'Overview',teams:'Teams',schedule:'Schedule',availability:'Availability',reports:'Reports',concerns:'Player concerns',invitations:'Invitations',members:'Members',settings:'Settings'})[page];document.querySelectorAll('.eh-selected').forEach(x=>x.textContent=selectedLabel());history.replaceState(null,'','#'+page);setMobileNav(false);}
+function go(page){const screens=['dashboard','teams','schedule','availability','reports','concerns','invitations','members','settings'];if(!screens.includes(page))page='dashboard';if(!s.me&&page!=='dashboard')page='dashboard';if(page==='members'&&!admin())page='dashboard';document.querySelectorAll('[data-panel]').forEach(x=>x.classList.toggle('hidden',x.dataset.panel!==page));document.querySelectorAll('[data-screen]').forEach(x=>x.classList.toggle('active',x.dataset.screen===page));$('breadcrumbCurrent').textContent=({dashboard:'Overview',teams:'Teams',schedule:'Schedule',availability:'Availability',reports:'Reports',concerns:'Player concerns',invitations:'Invitations',members:'Members',settings:'Settings'})[page];document.querySelectorAll('.eh-selected').forEach(x=>x.textContent=selectedLabel());const destination=new URL(routes.home());destination.search=new URL(location.href).search;destination.hash=page;history.replaceState(null,'',destination.href);setMobileNav(false);}
 function renderTeams(){const elements=[$('teams'),$('teamsMirror')];elements.forEach(el=>{el.replaceChildren();if(!s.teams.length){el.textContent='No assigned team yet. Your captain or manager can ask an administrator to assign you.';return;}s.teams.forEach(t=>{const b=document.createElement('button');b.type='button';b.className='eh-pick'+(s.team?.id===t.id?' active':'');b.textContent=`${t.name} · ${t.game_name}`;b.addEventListener('click',async()=>{try{await selectTeam(t);go('teams');notify(`Viewing ${t.name}`);}catch(e){notify(e.message,true);}});el.append(b);});});}
 async function refresh(){const [me,games,teams]=await Promise.all([api('/me'),api('/games'),api('/teams')]);s.me=me;s.games=games;s.teams=teams;$('loginPage').classList.add('hidden');$('dashboardShell').classList.remove('hidden');$('guest').classList.add('hidden');$('signed').classList.remove('hidden');$('logout').classList.remove('hidden');$('authStatus').textContent='Connected';$('welcome').textContent=me.user.name.split(' ')[0];$('sidebarName').textContent=me.user.name;$('sidebarRole').textContent=me.roles.map(m=>m.role.replace('_',' ')).join(' · ')||'Member';$('sidebarAvatar').textContent=me.user.name.split(' ').slice(0,2).map(x=>x[0]).join('').toUpperCase();$('roles').textContent=me.roles.map(m=>m.role.replace('_',' ')+(m.game_name?` · ${m.game_name}`:'')).join(' · ');$('statGames').textContent=games.length;$('statTeams').textContent=teams.length;$('statRole').textContent=admin()?'Admin':me.roles[0]?.role.replace('_',' ')||'Member';$('games').innerHTML=games.map(g=>`<div class="eh-item"><strong>${escapeHtml(g.name)}</strong></div>`).join('')||'No assigned games yet.';renderTeams();$('gameForm').classList.toggle('hidden',!admin());const managed=games.filter(g=>managesGame(g.id));$('teamForm').classList.toggle('hidden',!managed.length);listOptions($('createTeamGame'),managed,g=>g.name);listOptions($('inviteGame'),games,g=>g.name);listOptions($('inviteTeam'),teams,t=>t.name);$('staff').classList.toggle('hidden',!admin()&&!teams.some(managesTeam));document.querySelector('[data-screen="invitations"]').classList.toggle('hidden',!admin()&&!teams.some(managesTeam));$('membersNav').classList.toggle('hidden',!admin());$('waitingForTeam').classList.toggle('hidden',!me.roles.some(m=>m.role==='player'&&!m.game_id&&!m.team_id));if(admin())await loadMemberDirectory();const current=teams.find(t=>t.id===s.team?.id)||teams[0];if(current)await selectTeam(current);else clearTeam();go((location.hash||'#dashboard').slice(1));notify('Connected securely through Clerk.');}
 function clearTeam(){s.team=null;$('selected').classList.add('hidden');['events','reports','members','concerns'].forEach(id=>$(id).textContent='Select a team to view this section.');['eventForm','reportForm','review'].forEach(id=>$(id).classList.add('hidden'));document.querySelectorAll('.eh-selected').forEach(x=>x.textContent=selectedLabel());}
@@ -108,21 +148,30 @@ const pendingKey='eh_pending_invite';
 let pendingInvite=new URL(location.href).searchParams.get('invite')||'';
 try{if(pendingInvite)sessionStorage.setItem(pendingKey,pendingInvite);else pendingInvite=sessionStorage.getItem(pendingKey)||'';}catch{}
 function authReturnUrl(){return routes.home({invite:pendingInvite});}
-let mountedAuthMode=null,clerkMounted=false,authMode=new URL(location.href).searchParams.get('auth')==='signup'?'signup':'signin',accepting=false,inviteDetails=null;
-function unmountClerk(){if(!clerkMounted)return;if(mountedAuthMode==='signup')window.Clerk.unmountSignUp($('clerk-sign-in'));else window.Clerk.unmountSignIn($('clerk-sign-in'));clerkMounted=false;mountedAuthMode=null;}
-function mountClerk(){
-  if(clerkMounted||!s.clerkReady||window.Clerk.user)return;
-  clerkMounted=true;mountedAuthMode=authMode;
-  $('mainSignIn').setAttribute('aria-pressed',String(authMode==='signin'));$('mainSignUp').setAttribute('aria-pressed',String(authMode==='signup'));
-  const returnUrl=authReturnUrl();
-  const options={...routes.clerkOptions(returnUrl,pendingInvite),routing:'virtual',forceRedirectUrl:returnUrl,fallbackRedirectUrl:returnUrl,signInForceRedirectUrl:returnUrl,signInFallbackRedirectUrl:returnUrl,signUpForceRedirectUrl:returnUrl,signUpFallbackRedirectUrl:returnUrl,appearance:{elements:{rootBox:{width:'100%',maxWidth:'100%'},cardBox:{width:'100%',maxWidth:'100%'},card:{width:'100%',maxWidth:'100%'},formFieldInput:{fontSize:'16px'}}}};
-  if(authMode==='signup')window.Clerk.mountSignUp($('clerk-sign-in'),options);
-  else window.Clerk.mountSignIn($('clerk-sign-in'),{...options,withSignUp:true});
+let signInMounted=false,signUpMounted=false,accepting=false,inviteDetails=null;
+function unmountClerk(){
+  if(signInMounted){window.Clerk.unmountSignIn($('clerk-sign-in'));signInMounted=false;}
+  if(signUpMounted){window.Clerk.unmountSignUp($('clerk-sign-up'));signUpMounted=false;}
 }
-function showGuest(msg){s.me=null;$('loginPage').classList.remove('hidden');$('dashboardShell').classList.add('hidden');$('guest').classList.remove('hidden');$('signed').classList.add('hidden');$('logout').classList.add('hidden');$('authStatus').textContent='Sign in required';$('sidebarName').textContent='Not signed in';$('sidebarRole').textContent='Clerk authentication';$('guestNotice').textContent=msg||'';mountClerk();}
+function mountClerk(){
+  if(!s.clerkReady||window.Clerk.user)return;
+  const returnUrl=authReturnUrl();
+  const options={...routes.clerkOptions(returnUrl,pendingInvite),routing:'virtual',forceRedirectUrl:returnUrl,fallbackRedirectUrl:returnUrl,appearance:{elements:{rootBox:{width:'100%',maxWidth:'100%'},cardBox:{width:'100%',maxWidth:'100%'},card:{width:'100%',maxWidth:'100%'},formFieldInput:{fontSize:'16px'}}}};
+  if(!signInMounted){
+    try{window.Clerk.mountSignIn($('clerk-sign-in'),{...options,withSignUp:false});signInMounted=true;}
+    catch(e){$('signInLoading').textContent='Sign-in could not load: '+e.message;}
+  }
+  if(!signUpMounted){
+    try{window.Clerk.mountSignUp($('clerk-sign-up'),options);signUpMounted=true;}
+    catch(e){$('signUpLoading').textContent='Sign-up could not load: '+e.message;}
+  }
+  if(signInMounted)$('signInLoading').textContent='';
+  if(signUpMounted)$('signUpLoading').textContent='';
+}
+function showGuest(msg){s.me=null;$('loginPage').classList.remove('hidden');$('dashboardShell').classList.add('hidden');$('guest').classList.remove('hidden');$('signed').classList.add('hidden');$('logout').classList.add('hidden');$('authStatus').textContent='Sign in required';$('sidebarName').textContent='Not signed in';$('sidebarRole').textContent='Clerk authentication';$('guestNotice').textContent=msg||'';$('accountRecovery').classList.toggle('hidden',!window.Clerk?.user||!msg);$('accountRecoveryStatus').textContent=msg||'';mountClerk();}
 function resetInvite(){pendingInvite='';inviteDetails=null;try{sessionStorage.removeItem(pendingKey);}catch{}const url=new URL(location.href);url.searchParams.delete('invite');history.replaceState(null,'',url.href);$('invitationCard').classList.add('hidden');}
 async function showInvitation(){
-  showGuest();unmountClerk();$('authCard').classList.add('hidden');$('invitationCard').classList.remove('hidden');$('inviteAuthButtons').classList.add('hidden');$('acceptInvite').classList.add('hidden');$('invitationStatus').textContent='Checking your invitation…';
+  showGuest();unmountClerk();$('authCard').classList.add('hidden');$('signUpCard').classList.add('hidden');$('invitationCard').classList.remove('hidden');$('inviteAuthButtons').classList.add('hidden');$('acceptInvite').classList.add('hidden');$('invitationStatus').textContent='Checking your invitation…';
   $('invitationAccount').textContent='Signed in as '+(window.Clerk.user.primaryEmailAddress?.emailAddress||window.Clerk.user.fullName||'your Clerk account');
   try{
     await api('/me');
@@ -132,17 +181,17 @@ async function showInvitation(){
   }catch(e){$('invitationStatus').textContent=e.message;}
 }
 function chooseAuth(mode){
-  unmountClerk();authMode=mode;
-  $('authTitle').textContent=mode==='signup'?'Create an account':'Sign in';
-  $('mainSignIn').setAttribute('aria-pressed',String(mode==='signin'));
-  $('mainSignUp').setAttribute('aria-pressed',String(mode==='signup'));
-  const url=new URL(location.href);url.searchParams.set('auth',mode);history.replaceState(null,'',url.href);
+  if(window.Clerk?.user)return;
+  $('authCard').classList.remove('hidden');$('signUpCard').classList.remove('hidden');$('signUpCard').classList.remove('hidden');
   mountClerk();
+  const card=$(mode==='signup'?'signUpCard':'authCard');
+  card.scrollIntoView({behavior:'smooth',block:'center'});
+  const field=card.querySelector('input');if(field)field.focus();
 }
 $('inviteSignIn').onclick=()=>chooseAuth('signin');
 $('inviteSignUp').onclick=()=>chooseAuth('signup');
-$('mainSignIn').onclick=()=>chooseAuth('signin');
-$('mainSignUp').onclick=()=>chooseAuth('signup');
+$('retryWorkspace').onclick=()=>{void renderAuth().catch(e=>showGuest(e.message));};
+$('recoverySignOut').onclick=async()=>{await window.Clerk.signOut({redirectUrl:authReturnUrl()});};
 $('enrollmentSignOut').onclick=async()=>{await window.Clerk.signOut({redirectUrl:authReturnUrl()});};
 $('enrollmentForm').addEventListener('submit',async event=>{
   event.preventDefault();
@@ -153,7 +202,7 @@ $('enrollmentForm').addEventListener('submit',async event=>{
   history.replaceState(null,'',routes.home({invite:token}));await renderAuth();
 });
 $('invitationSwitch').onclick=async()=>{await window.Clerk.signOut({redirectUrl:authReturnUrl()});};
-$('invitationCancel').onclick=async()=>{resetInvite();$('authCard').classList.remove('hidden');await renderAuth();};
+$('invitationCancel').onclick=async()=>{resetInvite();$('authCard').classList.remove('hidden');$('signUpCard').classList.remove('hidden');await renderAuth();};
 $('acceptInvite').onclick=async()=>{
   if(accepting||!pendingInvite)return;accepting=true;$('acceptInvite').disabled=true;$('invitationStatus').textContent='Accepting invitation…';
   try{
@@ -169,12 +218,12 @@ async function renderAuth(){
   try{
     $('enrollmentCard').classList.add('hidden');
     if(!window.Clerk.user){
-      $('authTitle').textContent=authMode==='signup'?'Create an account':'Sign in';$('authCard').classList.remove('hidden');$('invitationCard').classList.toggle('hidden',!pendingInvite);$('inviteAuthButtons').classList.remove('hidden');$('acceptInvite').classList.add('hidden');$('invitationSwitch').classList.add('hidden');$('invitationAccount').textContent='';
+      $('authCard').classList.remove('hidden');$('signUpCard').classList.remove('hidden');$('invitationCard').classList.toggle('hidden',!pendingInvite);$('inviteAuthButtons').classList.remove('hidden');$('acceptInvite').classList.add('hidden');$('invitationSwitch').classList.add('hidden');$('invitationAccount').textContent='';
       $('invitationStatus').textContent='You have been invited to EsportsHub. Create an account or sign in, then review and accept your invitation.';showGuest();return;
     }
     unmountClerk();$('invitationSwitch').classList.remove('hidden');
     if(pendingInvite){await showInvitation();return;}
-    try{await refresh();}catch(e){$('authCard').classList.add('hidden');showGuest(e.message);if(e.status===403){$('enrollmentCard').classList.remove('hidden');$('guestNotice').textContent='Your account is signed in. Accept an invitation from your captain or manager to join a team.';}}
+    try{await refresh();}catch(e){$('authCard').classList.add('hidden');$('signUpCard').classList.add('hidden');showGuest(e.message);if(e.status===403){$('enrollmentCard').classList.remove('hidden');$('guestNotice').textContent='Your account is signed in. Accept an invitation from your captain or manager to join a team.';}}
   }finally{s.rendering=false;if(s.authQueued){s.authQueued=false;void renderAuth();}}
 }
-window.addEventListener('load',async()=>{try{if(!window.Clerk||!window.__internal_ClerkUICtor)throw Error('Clerk scripts did not load');await window.Clerk.load({...routes.clerkOptions(authReturnUrl(),pendingInvite),signInForceRedirectUrl:authReturnUrl(),signInFallbackRedirectUrl:authReturnUrl(),signUpForceRedirectUrl:authReturnUrl(),signUpFallbackRedirectUrl:authReturnUrl(),ui:{ClerkUI:window.__internal_ClerkUICtor}});s.clerkReady=true;window.Clerk.addListener(()=>{void renderAuth();});await renderAuth();}catch(e){notify('Unable to start Clerk: '+e.message,true);showGuest(e.message);}});
+window.addEventListener('load',async()=>{try{if(!window.Clerk)throw Error('Clerk script did not load. Reload the page or check browser content blocking.');await window.Clerk.load({...routes.clerkOptions(authReturnUrl(),pendingInvite),signInForceRedirectUrl:authReturnUrl(),signInFallbackRedirectUrl:authReturnUrl(),signUpForceRedirectUrl:authReturnUrl(),signUpFallbackRedirectUrl:authReturnUrl(),...(window.__internal_ClerkUICtor?{ui:{ClerkUI:window.__internal_ClerkUICtor}}:{})});s.clerkReady=true;window.Clerk.addListener(()=>{void renderAuth().catch(e=>{showGuest(e.message);});});await renderAuth();}catch(e){$('signInLoading').textContent='Unable to load sign-in: '+e.message;$('signUpLoading').textContent='Unable to load sign-up: '+e.message;notify('Unable to start Clerk: '+e.message,true);showGuest(e.message);}});
