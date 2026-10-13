@@ -32,6 +32,7 @@
     footer{color:#80728f;font-size:12px;line-height:1.6;margin-top:18px;text-align:center}
     code{color:#e4d3ff}
   </style>
+  <script src="js/routing.js?v=20261013-2"></script>
   <script defer crossorigin="anonymous" src="https://amazed-insect-6169.clerk.accounts.dev/npm/@clerk/ui@1/dist/ui.browser.js"></script>
   <script defer crossorigin="anonymous"
     data-clerk-publishable-key="pk_test_YW1hemVkLWluc2VjdC02MTY5LmNsZXJrLmFjY291bnRzLmRldiQ"
@@ -60,12 +61,16 @@
     <div id="result" class="state" role="status" aria-live="polite" hidden></div>
   </section>
   <footer>Only use this page for initial enrollment. Your bootstrap secret is sent directly to your Cloudflare Worker and is not saved by this page.</footer>
+  <p style="text-align:center;margin-top:20px"><a href="index.html" style="color:#c4a7fb">Open EsportsHub</a></p>
 </main>
 <script>
+  const setupReturnUrl = window.EsportsHubRoutes.page('setup.html');
+  const setupAuthOptions = window.EsportsHubRoutes.clerkOptions(setupReturnUrl);
   const API = 'https://esportshub-api.frankierose212005.workers.dev';
   const $ = id => document.getElementById(id);
   let isSubmitting = false;
   let lastSignedIn = null;
+  let authMounted = false;
   function message(text, type = '') {
     const el = $('result');
     el.textContent = text;
@@ -79,11 +84,13 @@
     $('signed-out').hidden = signedIn;
     $('signed-in').hidden = !signedIn;
     if (signedIn) {
+      if(authMounted){clerk.unmountSignIn($('clerk-sign-in'));authMounted=false;}
       $('identity').textContent = `Signed in: ${clerk.user.primaryEmailAddress?.emailAddress || clerk.user.fullName || clerk.user.id}`;
-    } else if (lastSignedIn !== false) {
+    } else if (!authMounted) {
       const target = $('clerk-sign-in');
       target.replaceChildren();
-      clerk.mountSignIn(target, { routing: 'virtual' });
+      authMounted=true;
+      clerk.mountSignIn(target, { ...setupAuthOptions, routing: 'virtual', forceRedirectUrl: setupReturnUrl, fallbackRedirectUrl: setupReturnUrl });
     }
     if (lastSignedIn !== signedIn) message('');
     lastSignedIn = signedIn;
@@ -91,7 +98,7 @@
   window.addEventListener('load', async () => {
     try {
       if (!window.Clerk || !window.__internal_ClerkUICtor) throw new Error('Clerk scripts did not load. Check your internet connection or browser extensions.');
-      await window.Clerk.load({ui: {ClerkUI: window.__internal_ClerkUICtor}});
+      await window.Clerk.load({...setupAuthOptions,ui: {ClerkUI: window.__internal_ClerkUICtor}});
       window.Clerk.addListener(render);
       render();
     } catch (e) {
@@ -100,7 +107,7 @@
     }
   });
   $('sign-out').addEventListener('click', async () => {
-    try { await window.Clerk.signOut(); render(); }
+    try { await window.Clerk.signOut({redirectUrl:setupReturnUrl}); render(); }
     catch (e) { message(`Sign-out failed: ${e.message}`, 'error'); }
   });
   $('setup-form').addEventListener('submit', async e => {
