@@ -46,7 +46,19 @@ let noticeTimer;const notify=(msg,error=false)=>{clearTimeout(noticeTimer);const
 const admin=()=>s.me?.roles.some(m=>m.role==='admin');
 const managesGame=id=>admin()||s.me?.roles.some(m=>m.role==='game_manager'&&m.game_id===id);
 const managesTeam=t=>managesGame(t.game_id)||s.me?.roles.some(m=>['captain','team_manager'].includes(m.role)&&m.team_id===t.id);
-const fmt=date=>{const d=new Date(date);return isNaN(d)?'Date unavailable':d.toLocaleString(undefined,{dateStyle:'medium',timeStyle:'short'});};
+const EASTERN_ZONE='America/New_York';
+function easternParts(value){return Object.fromEntries(new Intl.DateTimeFormat('en-US',{timeZone:EASTERN_ZONE,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date(value)).map(p=>[p.type,p.value]));}
+function easternDay(value){const p=easternParts(value);return `${p.year}-${p.month}-${p.day}`;}
+function easternClock(value){const p=easternParts(value);return `${p.hour}:${p.minute}`;}
+function easternWallDate(value){const p=easternParts(value);return new Date(Number(p.year),Number(p.month)-1,Number(p.day),Number(p.hour),Number(p.minute));}
+function fromEasternInput(day,time){
+ const target=Date.parse(`${day}T${time}:00Z`);if(!Number.isFinite(target))throw Error('Choose a valid Eastern date and time');
+ const matches=[];for(const offset of [4,5]){const candidate=new Date(target+offset*3600000);if(easternDay(candidate)===day&&easternClock(candidate)===time)matches.push(candidate);}
+ if(!matches.length)throw Error('This Eastern time does not exist because of daylight saving time. Choose another time.');
+ if(matches.length>1)throw Error('This Eastern time occurs twice when daylight saving time ends. Choose a time outside the repeated hour.');
+ return matches[0];
+}
+const fmt=date=>{const d=new Date(date);return isNaN(d)?'Date unavailable':d.toLocaleString('en-US',{timeZone:EASTERN_ZONE,month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true,timeZoneName:'short'});};
 async function api(path,method='GET',body){const token=await window.Clerk?.session?.getToken();if(!token)throw Error('Sign in with Clerk first');const r=await fetch(s.api+path,{method,headers:{Authorization:`Bearer ${token}`,...(body!==undefined?{'Content-Type':'application/json'}:{})},...(body!==undefined?{body:JSON.stringify(body)}:{})});const data=await r.json().catch(()=>({}));if(!r.ok)throw Object.assign(Error(data.error||`API request failed (${r.status})`),{status:r.status});return data;}
 function listOptions(el,items,label){el.innerHTML=items.map(t=>`<option value="${escapeHtml(t.id)}">${escapeHtml(label(t))}</option>`).join('');}
 function selectedLabel(){return s.team?`${s.team.game_name} / ${s.team.name}`:'Select a team under Teams first';}
@@ -58,7 +70,7 @@ async function selectTeam(t){const [info,events,reports,availability]=await Prom
 function form(id,fn){$(id).addEventListener('submit',async e=>{e.preventDefault();const element=e.currentTarget;const values=Object.fromEntries(new FormData(element).entries());try{await fn(values);element.reset();}catch(err){notify(err.message,true);}});}
 form('gameForm',async b=>{await api('/games','POST',{name:b.name});await refresh();notify('Game created');});
 form('teamForm',async b=>{await api('/teams','POST',b);await refresh();notify('Team created');});
-form('eventForm',async b=>{if(!s.team)throw Error('Select a team first');const when=new Date(`${b.date}T${b.time}`);if(!b.date||!b.time||isNaN(when))throw Error('Choose a valid date and time');const {date,time,...rest}=b;await api(`/teams/${s.team.id}/events`,'POST',{...rest,startsAt:when.toISOString()});s.calMonth=new Date(when.getFullYear(),when.getMonth(),1);s.calSel=date;await selectTeam(s.team);notify('Event scheduled');});
+form('eventForm',async b=>{if(!s.team)throw Error('Select a team first');const when=fromEasternInput(b.date,b.time);if(!b.date||!b.time||isNaN(when))throw Error('Choose a valid date and time');const {date,time,...rest}=b;await api(`/teams/${s.team.id}/events`,'POST',{...rest,startsAt:when.toISOString()});const wall=easternWallDate(when);s.calMonth=new Date(wall.getFullYear(),wall.getMonth(),1);s.calSel=date;await selectTeam(s.team);notify('Event scheduled');});
 form('reportForm',async b=>{if(!s.team)throw Error('Select a team first');await api(`/teams/${s.team.id}/reports`,'POST',b);await selectTeam(s.team);notify('Report published');});
 form('concernForm',async b=>{if(!s.team)throw Error('Select a team first');await api(`/teams/${s.team.id}/concerns`,'POST',b);if(managesGame(s.team.game_id))await selectTeam(s.team);notify('Private concern submitted');});
 form('availabilityForm',async()=>{if(!s.team)throw Error('Select a team first');await api(`/teams/${s.team.id}/availability`,'PUT',{slots:[...s.slots].sort((a,b)=>a-b)});await selectTeam(s.team);notify('Availability saved');});
@@ -370,10 +382,10 @@ async function moveTeam(id,d){
 // ---- Schedule: date-sorted list + month calendar ----
 s.events=[];
 s.schedView=(()=>{try{return localStorage.getItem('eh_sched_view')||'list';}catch{return 'list';}})();
-s.calMonth=new Date();s.calMonth.setDate(1);s.calSel=null;
+s.calMonth=easternWallDate(new Date());s.calMonth.setDate(1);s.calSel=null;
 const schEl=(tag,cls,text)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(text!=null)n.textContent=text;return n;};
 const schDay=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-const schTime=d=>d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
+const schTime=d=>d.toLocaleTimeString('en-US',{timeZone:EASTERN_ZONE,hour:'numeric',minute:'2-digit',hour12:true,timeZoneName:'short'});
 const schType=t=>String(t||'event').replace(/[^a-z]/g,'')||'event';
 function schCard(e){
   const c=schEl('div','eh-item sch-card sch-'+schType(e.type)),top=schEl('div','sch-top');
@@ -387,13 +399,13 @@ function schCard(e){
 function schList(box,evs){
   if(!evs.length){box.append(schEl('p','eh-muted','No events scheduled.'));return;}
   const today=new Date();today.setHours(0,0,0,0);
-  const up=evs.filter(e=>e.d>=today),past=evs.filter(e=>e.d<today).reverse();
-  const group=arr=>{const f=document.createDocumentFragment();let last='';arr.forEach(e=>{const k=schDay(e.d);if(k!==last){last=k;f.append(schEl('h3','sch-day',e.d.toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric',year:'numeric'})));}f.append(schCard(e));});return f;};
+  const todayKey=easternDay(new Date());const up=evs.filter(e=>easternDay(e.d)>=todayKey),past=evs.filter(e=>easternDay(e.d)<todayKey).reverse();
+  const group=arr=>{const f=document.createDocumentFragment();let last='';arr.forEach(e=>{const k=easternDay(e.d);if(k!==last){last=k;f.append(schEl('h3','sch-day',e.d.toLocaleDateString('en-US',{timeZone:EASTERN_ZONE,weekday:'long',month:'long',day:'numeric',year:'numeric'})));}f.append(schCard(e));});return f;};
   box.append(up.length?group(up):schEl('p','eh-muted','No upcoming events.'));
   if(past.length){const d=schEl('details','sch-past');d.append(schEl('summary','',`Past events (${past.length})`),group(past));box.append(d);}
 }
 function schCalendar(box,evs){
-  const m=s.calMonth,y=m.getFullYear(),mo=m.getMonth(),now=new Date(),todayKey=schDay(now);
+  const m=s.calMonth,y=m.getFullYear(),mo=m.getMonth(),now=easternWallDate(new Date()),todayKey=schDay(now);
   if(!s.calSel)s.calSel=todayKey;
   const head=schEl('div','sch-calhead');
   const btn=(label,aria,fn)=>{const b=schEl('button','eh-btn',label);b.type='button';b.setAttribute('aria-label',aria);b.onclick=fn;return b;};
@@ -401,7 +413,7 @@ function schCalendar(box,evs){
     schEl('strong','',m.toLocaleDateString(undefined,{month:'long',year:'numeric'})),
     btn('Today','Go to today',()=>{s.calMonth=new Date(now.getFullYear(),now.getMonth(),1);s.calSel=todayKey;renderSchedule();}),
     btn('›','Next month',()=>{s.calMonth=new Date(y,mo+1,1);renderSchedule();}));
-  const byDay={};evs.forEach(e=>{(byDay[schDay(e.d)]=byDay[schDay(e.d)]||[]).push(e);});
+  const byDay={};evs.forEach(e=>{(byDay[easternDay(e.d)]=byDay[easternDay(e.d)]||[]).push(e);});
   const grid=schEl('div','sch-grid');
   ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].forEach(d=>grid.append(schEl('div','sch-dow',d)));
   const first=new Date(y,mo,1),weeks=Math.ceil((first.getDay()+new Date(y,mo+1,0).getDate())/7);
@@ -423,7 +435,7 @@ function schCalendar(box,evs){
   box.append(view);
 }
 function renderSchedule(){
-  const box=$('events');box.replaceChildren();
+  const box=$('events');box.replaceChildren();renderNeccSettings(box);
   const bar=schEl('div','sch-bar');
   [['list','List'],['calendar','Calendar']].forEach(([v,label])=>{
     const b=schEl('button','eh-btn',label);b.type='button';b.setAttribute('aria-pressed',String(s.schedView===v));
@@ -522,11 +534,11 @@ $('reports').addEventListener('click',e=>{const b=e.target.closest('[data-edit-r
 function openTeamEditor(kind,item){
  if(!s.team||!managesTeam(s.team))return;const teamId=s.team.id;
  const dialog=document.createElement('dialog');dialog.className='eh-dialog eh-panel eh-editor';
- const event=kind==='events',date=new Date(item.starts_at);
- dialog.innerHTML=`<form><h2>Edit ${event?'event':'report'}</h2><label>Title<input name="title" required maxlength="${event?120:140}" value="${escapeHtml(item.title)}"></label><label>Type<select name="type">${(event?['match','scrim','practice','event']:['scrim','vod','match','practice']).map(type=>`<option value="${type}" ${type===item.type?'selected':''}>${type==='vod'?'VOD Review':roleLabel(type)}</option>`).join('')}</select></label>${event?`<label>Opponent<input name="opponent" maxlength="100" value="${escapeHtml(item.opponent||'')}"></label><label>Date<input name="date" type="date" required value="${schDay(date)}"></label><label>Time<input name="time" type="time" required value="${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}"></label>`:''}<label>Notes<textarea name="${event?'notes':'content'}" ${event?'':'required'} maxlength="${event?2000:8000}">${escapeHtml(event?item.notes||'':item.content||'')}</textarea></label><p class="eh-muted">Use blank lines for spacing, - for bullets, or 1. for numbered lists.</p><p role="status"></p><button class="eh-btn" type="submit">Save changes</button> <button class="eh-btn" type="button" data-cancel>Cancel</button></form>`;
+ const event=kind==='events',date=easternWallDate(item.starts_at);
+ dialog.innerHTML=`<form><h2>Edit ${event?'event':'report'}</h2><label>Title<input name="title" required maxlength="${event?120:140}" value="${escapeHtml(item.title)}"></label><label>Type<select name="type">${(event?['match','scrim','practice','event']:['scrim','vod','match','practice']).map(type=>`<option value="${type}" ${type===item.type?'selected':''}>${type==='vod'?'VOD Review':roleLabel(type)}</option>`).join('')}</select></label>${event?`<label>Opponent<input name="opponent" maxlength="100" value="${escapeHtml(item.opponent||'')}"></label><label>Date<input name="date" type="date" required value="${schDay(date)}"></label><label>Time (Eastern)<input name="time" type="time" required value="${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}"></label>`:''}<label>Notes<textarea name="${event?'notes':'content'}" ${event?'':'required'} maxlength="${event?2000:8000}">${escapeHtml(event?item.notes||'':item.content||'')}</textarea></label><p class="eh-muted">Use blank lines for spacing, - for bullets, or 1. for numbered lists.</p><p role="status"></p><button class="eh-btn" type="submit">Save changes</button> <button class="eh-btn" type="button" data-cancel>Cancel</button></form>`;
  dialog.querySelector('[data-cancel]').onclick=()=>dialog.close();dialog.addEventListener('close',()=>dialog.remove());
  dialog.querySelector('form').onsubmit=async e=>{e.preventDefault();const form=e.target,b=Object.fromEntries(new FormData(form)),save=form.querySelector('[type=submit]');save.disabled=true;
-  try{if(event){const when=new Date(`${b.date}T${b.time}`);if(isNaN(when))throw Error('Choose a valid date and time');b.startsAt=when.toISOString();delete b.date;delete b.time;}await api(`/teams/${encodeURIComponent(teamId)}/${kind}/${encodeURIComponent(item.id)}`,'PATCH',b);dialog.close();if(s.team?.id===teamId)await selectTeam(s.team);notify('Changes saved.');}
+  try{if(event){const when=fromEasternInput(b.date,b.time);if(isNaN(when))throw Error('Choose a valid date and time');b.startsAt=when.toISOString();delete b.date;delete b.time;}await api(`/teams/${encodeURIComponent(teamId)}/${kind}/${encodeURIComponent(item.id)}`,'PATCH',b);dialog.close();if(s.team?.id===teamId)await selectTeam(s.team);notify('Changes saved.');}
   catch(err){form.querySelector('[role=status]').textContent=err.message;}finally{save.disabled=false;}
  };document.body.append(dialog);dialog.showModal();
 }
@@ -539,3 +551,18 @@ function showAvailabilityPeriod(start){
  availabilityPeriod.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(Number(b.dataset.period)===start)));
 }
 showAvailabilityPeriod(24);
+
+function renderNeccSettings(box){
+ if(!s.team||!(admin()||s.me?.roles.some(m=>m.role==='team_manager'&&m.team_id===s.team.id)))return;
+ const teamId=s.team.id,section=schEl('section','eh-necc-settings'),heading=schEl('h3','','NECC Match Sync');section.append(heading);
+ const form=document.createElement('form'),label=document.createElement('label');label.textContent='NECC team link';
+ const input=document.createElement('input');input.type='url';input.required=true;input.placeholder='https://necc.v1.leagueos.gg/league/teams/…';label.append(input);
+ const enabledLabel=document.createElement('label'),enabled=document.createElement('input');enabled.type='checkbox';enabled.checked=true;enabled.style.width='auto';enabledLabel.append(enabled,document.createTextNode(' Enable automatic syncing'));
+ const save=schEl('button','eh-btn tiny','Save settings');save.type='submit';const sync=schEl('button','eh-btn tiny','Sync now');sync.type='button';sync.disabled=true;
+ const status=schEl('p','eh-muted','Loading sync settings…');status.setAttribute('role','status');form.append(label,enabledLabel,save,document.createTextNode(' '),sync,status);section.append(form);box.append(section);
+ const url=`/teams/${encodeURIComponent(teamId)}/necc`;
+ async function load(){try{const c=await api(url);if(!section.isConnected)return;input.value=c?.team_url||'';enabled.checked=c?!!c.enabled:true;sync.disabled=!c;status.textContent=c?`${c.enabled?'Auto-sync enabled (requires Worker Cron Trigger).':'Auto-sync paused.'} Last successful sync: ${c.last_synced?fmt(c.last_synced):'Never'}.${c.last_error?' Last error: '+c.last_error:''}`:'Save your NECC team link, then select Sync now.';}catch(e){status.textContent=e.message;}}
+ form.onsubmit=async e=>{e.preventDefault();save.disabled=true;try{await api(url,'PUT',{url:input.value.trim(),enabled:enabled.checked});await load();}catch(e){status.textContent=e.message;}finally{save.disabled=false;}};
+ sync.onclick=async()=>{sync.disabled=true;status.textContent='Syncing NECC matches…';try{const r=await api(url+'/sync','POST',{});if(s.team?.id===teamId)await selectTeam(s.team);notify(`NECC sync complete: ${r.matched} matches processed.`);}catch(e){status.textContent=e.message;}finally{sync.disabled=false;}};
+ void load();
+}
