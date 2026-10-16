@@ -54,11 +54,11 @@ function go(page){const screens=['dashboard','teams','schedule','availability','
 function renderTeams(){const elements=[$('teams'),$('teamsMirror')];elements.forEach(el=>{el.replaceChildren();if(!s.teams.length){el.textContent='No assigned team yet. Your captain or manager can ask an administrator to assign you.';return;}s.teams.forEach(t=>{const b=document.createElement('button');b.type='button';b.className='eh-pick'+(s.team?.id===t.id?' active':'');b.textContent=`${t.name} · ${t.game_name}`;b.addEventListener('click',async()=>{try{await selectTeam(t);go('teams');notify(`Viewing ${t.name}`);}catch(e){notify(e.message,true);}});if(admin()&&s.teams.length>1){const row=document.createElement('div');row.className='eh-reorder';row.append(b);[['▲','Move up',-1],['▼','Move down',1]].forEach(([ic,label,d])=>{const m=document.createElement('button');m.type='button';m.className='eh-btn';m.textContent=ic;m.setAttribute('aria-label',label+' '+t.name);m.addEventListener('click',()=>moveTeam(t.id,d));row.append(m);});el.append(row);}else el.append(b);});});}
 async function refresh(){const [me,games,teams]=await Promise.all([api('/me'),api('/games'),api('/teams')]);s.me=me;s.games=games;s.teams=teams;$('loginPage').classList.add('hidden');$('dashboardShell').classList.remove('hidden');$('guest').classList.add('hidden');$('signed').classList.remove('hidden');$('logout').classList.remove('hidden');$('authStatus').textContent='Connected';$('welcome').textContent=me.user.name.split(' ')[0];$('sidebarName').textContent=me.user.name;$('sidebarRole').textContent=me.roles.map(m=>m.role.replace('_',' ')).join(' · ')||'Member';$('sidebarAvatar').textContent=me.user.name.split(' ').slice(0,2).map(x=>x[0]).join('').toUpperCase();$('roles').textContent=me.roles.map(m=>m.role.replace('_',' ')+(m.game_name?` · ${m.game_name}`:'')).join(' · ');$('statGames').textContent=games.length;$('statTeams').textContent=teams.length;$('statRole').textContent=admin()?'Admin':me.roles[0]?.role.replace('_',' ')||'Member';$('games').innerHTML=games.map(g=>`<div class="eh-item"><strong>${escapeHtml(g.name)}</strong></div>`).join('')||'No assigned games yet.';renderTeams();$('gameForm').classList.toggle('hidden',!admin());const managed=games.filter(g=>managesGame(g.id));$('teamForm').classList.toggle('hidden',!managed.length);listOptions($('createTeamGame'),managed,g=>g.name);listOptions($('inviteGame'),games,g=>g.name);listOptions($('inviteTeam'),teams,t=>t.name);$('staff').classList.toggle('hidden',!admin()&&!teams.some(managesTeam));document.querySelector('[data-screen="invitations"]').classList.toggle('hidden',!admin()&&!teams.some(managesTeam));$('membersNav').classList.toggle('hidden',!admin());$('waitingForTeam').classList.toggle('hidden',!me.roles.some(m=>m.role==='player'&&!m.game_id&&!m.team_id));if(admin())await loadMemberDirectory();const current=teams.find(t=>t.id===s.team?.id)||teams[0];if(current)await selectTeam(current);else clearTeam();go((location.hash||'#dashboard').slice(1));fillProfile();notify('Connected securely through Clerk.');}
 function clearTeam(){s.team=null;$('selected').classList.add('hidden');['events','reports','members','concerns'].forEach(id=>$(id).textContent='Select a team to view this section.');['eventForm','reportForm','review'].forEach(id=>$(id).classList.add('hidden'));document.querySelectorAll('.eh-selected').forEach(x=>x.textContent=selectedLabel());}
-async function selectTeam(t){const [info,events,reports,availability]=await Promise.all([api(`/teams/${t.id}`),api(`/teams/${t.id}/events`),api(`/teams/${t.id}/reports`),api(`/teams/${t.id}/availability`)]);s.team=t;$('selected').classList.remove('hidden');$('teamTitle').textContent=`${t.name} · ${t.game_name}`;$('teamDesc').textContent=info.team.description||'No description';$('members').innerHTML=info.members.map(m=>`<div class="eh-item"><strong>${escapeHtml(m.display_name)}</strong><span class="eh-muted"> · ${escapeHtml(m.role)}</span> <button type="button" class="eh-btn" data-profile="${escapeHtml(m.user_id||m.id||'')}" data-name="${escapeHtml(m.display_name)}" data-role="${escapeHtml(m.role)}" style="padding:4px 10px;min-height:30px;margin-left:8px">View profile</button></div>`).join('')||'No registered members yet.';$('events').innerHTML=events.map(e=>`<div class="eh-item"><strong>${escapeHtml(e.title)}</strong><div class="eh-muted">${escapeHtml(e.type)} · ${escapeHtml(fmt(e.starts_at))}${e.opponent?' · vs '+escapeHtml(e.opponent):''}</div>${e.notes?`<p>${escapeHtml(e.notes)}</p>`:''}</div>`).join('')||'No events scheduled.';$('reports').innerHTML=reports.map(r=>`<div class="eh-item"><strong>${escapeHtml(r.title)}</strong><div class="eh-muted">${escapeHtml(r.type)} · ${escapeHtml(r.author||'')}</div><p>${escapeHtml(r.content)}</p></div>`).join('')||'No reports published.';$('eventForm').classList.toggle('hidden',!managesTeam(t));$('reportForm').classList.toggle('hidden',!managesTeam(t));$('review').classList.toggle('hidden',!managesGame(t.game_id));if(managesGame(t.game_id)){const concerns=await api(`/teams/${t.id}/concerns`);$('concerns').innerHTML=concerns.map(c=>`<div class="eh-item"><strong>${escapeHtml(c.status||'Open')}</strong> · ${escapeHtml(c.author)}<p>${escapeHtml(c.details)}</p></div>`).join('')||'No private concerns.';}const mine=Array.isArray(availability)?availability.find(x=>x.user_id===s.me.user.id)?.slots||[]:availability.slots||[];s.slots=new Set(mine.map(Number));updateGrid();renderTeams();document.querySelectorAll('.eh-selected').forEach(x=>x.textContent=selectedLabel());}
+async function selectTeam(t){const [info,events,reports,availability]=await Promise.all([api(`/teams/${t.id}`),api(`/teams/${t.id}/events`),api(`/teams/${t.id}/reports`),api(`/teams/${t.id}/availability`)]);s.team=t;$('selected').classList.remove('hidden');$('teamTitle').textContent=`${t.name} · ${t.game_name}`;$('teamDesc').textContent=info.team.description||'No description';$('members').innerHTML=info.members.map(m=>`<div class="eh-item"><strong>${escapeHtml(m.display_name)}</strong><span class="eh-muted"> · ${escapeHtml(m.role)}</span> <button type="button" class="eh-btn" data-profile="${escapeHtml(m.user_id||m.id||'')}" data-name="${escapeHtml(m.display_name)}" data-role="${escapeHtml(m.role)}" style="padding:4px 10px;min-height:30px;margin-left:8px">View profile</button></div>`).join('')||'No registered members yet.';s.events=events;renderSchedule();$('reports').innerHTML=reports.map(r=>`<div class="eh-item"><strong>${escapeHtml(r.title)}</strong><div class="eh-muted">${escapeHtml(r.type)} · ${escapeHtml(r.author||'')}</div><p>${escapeHtml(r.content)}</p></div>`).join('')||'No reports published.';$('eventForm').classList.toggle('hidden',!managesTeam(t));$('reportForm').classList.toggle('hidden',!managesTeam(t));$('review').classList.toggle('hidden',!managesGame(t.game_id));if(managesGame(t.game_id)){const concerns=await api(`/teams/${t.id}/concerns`);$('concerns').innerHTML=concerns.map(c=>`<div class="eh-item"><strong>${escapeHtml(c.status||'Open')}</strong> · ${escapeHtml(c.author)}<p>${escapeHtml(c.details)}</p></div>`).join('')||'No private concerns.';}const mine=Array.isArray(availability)?availability.find(x=>x.user_id===s.me.user.id)?.slots||[]:availability.slots||[];s.slots=new Set(mine.map(Number));updateGrid();renderTeams();document.querySelectorAll('.eh-selected').forEach(x=>x.textContent=selectedLabel());}
 function form(id,fn){$(id).addEventListener('submit',async e=>{e.preventDefault();const element=e.currentTarget;const values=Object.fromEntries(new FormData(element).entries());try{await fn(values);element.reset();}catch(err){notify(err.message,true);}});}
 form('gameForm',async b=>{await api('/games','POST',{name:b.name});await refresh();notify('Game created');});
 form('teamForm',async b=>{await api('/teams','POST',b);await refresh();notify('Team created');});
-form('eventForm',async b=>{if(!s.team)throw Error('Select a team first');if(!b.startsAt||!Number.isFinite(Date.parse(b.startsAt)))throw Error('Choose a valid date and time');await api(`/teams/${s.team.id}/events`,'POST',{...b,startsAt:new Date(b.startsAt).toISOString()});await selectTeam(s.team);notify('Event scheduled');});
+form('eventForm',async b=>{if(!s.team)throw Error('Select a team first');const when=new Date(`${b.date}T${b.time}`);if(!b.date||!b.time||isNaN(when))throw Error('Choose a valid date and time');const {date,time,...rest}=b;await api(`/teams/${s.team.id}/events`,'POST',{...rest,startsAt:when.toISOString()});s.calMonth=new Date(when.getFullYear(),when.getMonth(),1);s.calSel=date;await selectTeam(s.team);notify('Event scheduled');});
 form('reportForm',async b=>{if(!s.team)throw Error('Select a team first');await api(`/teams/${s.team.id}/reports`,'POST',b);await selectTeam(s.team);notify('Report published');});
 form('concernForm',async b=>{if(!s.team)throw Error('Select a team first');await api(`/teams/${s.team.id}/concerns`,'POST',b);if(managesGame(s.team.game_id))await selectTeam(s.team);notify('Private concern submitted');});
 form('availabilityForm',async()=>{if(!s.team)throw Error('Select a team first');await api(`/teams/${s.team.id}/availability`,'PUT',{slots:[...s.slots].sort((a,b)=>a-b)});notify('Availability saved');});
@@ -257,6 +257,8 @@ $('profileForm').addEventListener('submit',async e=>{
     if(f.size>10*1024*1024)problems.push('Picture: file is over 10 MB');
     else{try{await u.setProfileImage({file:f});$('pfAvatar').value='';}catch(err){problems.push('Picture: '+errMsg(err));}}
   }
+  const bf=$('pfBannerFile').files[0];
+  if(bannerValue()==='upload'&&bf){try{await uploadBanner(bf);$('pfBannerFile').value='';}catch(err){problems.push('Banner: '+errMsg(err));}}
   try{await saveAppProfile();}catch(err){problems.push(err.message);}
   try{await u.reload();}catch{}
   const full=[u.firstName,u.lastName].filter(Boolean).join(' ')||'Member';
@@ -275,8 +277,33 @@ function applyBanner(el,value){
   else if(typeof value==='string'&&/^https:\/\//.test(value))el.style.backgroundImage='url("'+value.replace(/["\\\s]/g,encodeURIComponent)+'")';
 }
 function bannerValue(){return $('pfBanner').value==='custom'?$('pfBannerUrl').value.trim():$('pfBanner').value;}
-function refreshBannerPreview(){$('pfBannerUrlWrap').classList.toggle('hidden',$('pfBanner').value!=='custom');applyBanner($('pfBannerPreview'),bannerValue());}
-$('pfBanner').addEventListener('change',refreshBannerPreview);$('pfBannerUrl').addEventListener('input',refreshBannerPreview);
+const bannerCache={};
+async function bannerBlobUrl(userId){
+  if(bannerCache[userId])return bannerCache[userId];
+  const token=await window.Clerk?.session?.getToken();
+  const r=await fetch(s.api+'/banner/'+encodeURIComponent(userId),{headers:{Authorization:'Bearer '+token}});
+  if(!r.ok)throw Error('No banner ('+r.status+')');
+  return bannerCache[userId]=URL.createObjectURL(await r.blob());
+}
+async function applyBannerFor(el,value,userId){
+  applyBanner(el,value);
+  if(value!=='upload')return null;
+  try{const url=await bannerBlobUrl(userId);el.style.backgroundImage='url("'+url+'")';return url;}catch{return null;}
+}
+async function uploadBanner(f){
+  if(f.size>4*1024*1024)throw Error('Banner is over 4 MB');
+  const token=await window.Clerk?.session?.getToken();
+  const r=await fetch(s.api+'/me/banner',{method:'PUT',headers:{Authorization:'Bearer '+token,'Content-Type':f.type||'application/octet-stream'},body:f});
+  const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.error||'Banner upload failed ('+r.status+')');
+  delete bannerCache[s.me.user.id];
+}
+function refreshBannerPreview(){
+  const v=$('pfBanner').value,f=$('pfBannerFile').files[0];
+  $('pfBannerUrlWrap').classList.toggle('hidden',v!=='custom');$('pfBannerFileWrap').classList.toggle('hidden',v!=='upload');
+  if(v==='upload'){if(f)$('pfBannerPreview').style.backgroundImage='url("'+URL.createObjectURL(f)+'")';else if(s.me)applyBannerFor($('pfBannerPreview'),'upload',s.me.user.id);}
+  else applyBanner($('pfBannerPreview'),bannerValue());
+}
+$('pfBanner').addEventListener('change',refreshBannerPreview);$('pfBannerFile').addEventListener('change',refreshBannerPreview);$('pfBannerUrl').addEventListener('input',refreshBannerPreview);
 async function fillProfile(){
   fillProfileBasics();
   const games=s.games||[];
@@ -287,7 +314,7 @@ async function fillProfile(){
   $('pfMain').value=prof.main_game_id||'';$('pfUser').value=prof.username||'';
   (prof.game_usernames||[]).forEach(x=>{const i=$('pfGames').querySelector(`[data-game="${CSS.escape(String(x.game_id))}"]`);if(i)i.value=x.username;});
   const b=prof.banner||'preset:purple';
-  if(b.startsWith('https://')){$('pfBanner').value='custom';$('pfBannerUrl').value=b;}else $('pfBanner').value=BANNERS[b.slice(7)]?b:'preset:purple';
+  if(b.startsWith('https://')){$('pfBanner').value='custom';$('pfBannerUrl').value=b;}else if(b==='upload')$('pfBanner').value='upload';else $('pfBanner').value=BANNERS[b.slice(7)]?b:'preset:purple';
   refreshBannerPreview();
 }
 async function saveAppProfile(){
@@ -322,12 +349,12 @@ $('members').addEventListener('click',async e=>{
     const p=await api('/profile/'+encodeURIComponent(uid));
     $('pdName').textContent=p.name||name;
     $('pdMeta').textContent=p.username?'@'+p.username:'';
-    applyBanner($('pdBanner'),p.banner);setAvatar(p.image_url,p.name||name);
+    const bUrl=await applyBannerFor($('pdBanner'),p.banner,uid);setAvatar(p.image_url,p.name||name);
     const main=(s.games.find(g=>g.id===p.main_game_id)||{}).name||p.main_game_name;
     $('pdMain').textContent=main||'';$('pdMainWrap').classList.toggle('hidden',!main);
     const list=(p.game_usernames||[]).map(x=>`<div class="eh-ign"><span>${escapeHtml(x.game_name||'Game')}</span><strong>${escapeHtml(x.username)}</strong></div>`).join('');
     $('pdGames').innerHTML=list||'<span class="eh-muted">None added yet.</span>';$('pdNote').textContent='';
-    pd.style.setProperty('--pc',await profileColor(p.banner,p.image_url));
+    pd.style.setProperty('--pc',await profileColor(p.banner==='upload'?bUrl:p.banner,p.image_url));
   }catch(err){$('pdNote').textContent='Could not load full profile: '+err.message;}
 });
 // ---- Admin: reorder teams ----
@@ -336,4 +363,70 @@ async function moveTeam(id,d){
   const prev=[...s.teams];[s.teams[i],s.teams[j]]=[s.teams[j],s.teams[i]];renderTeams();
   try{await api('/teams/order','PUT',{ids:s.teams.map(t=>t.id)});notify('Team order saved.');}
   catch(e){s.teams=prev;renderTeams();notify('Could not save team order: '+e.message,true);}
+}
+
+// ---- Schedule: date-sorted list + month calendar ----
+s.events=[];
+s.schedView=(()=>{try{return localStorage.getItem('eh_sched_view')||'list';}catch{return 'list';}})();
+s.calMonth=new Date();s.calMonth.setDate(1);s.calSel=null;
+const schEl=(tag,cls,text)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(text!=null)n.textContent=text;return n;};
+const schDay=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const schTime=d=>d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
+const schType=t=>String(t||'event').replace(/[^a-z]/g,'')||'event';
+function schCard(e){
+  const c=schEl('div','eh-item sch-card sch-'+schType(e.type)),top=schEl('div','sch-top');
+  top.append(schEl('span','sch-time',schTime(e.d)),schEl('span','sch-type',e.type||'event'));
+  c.append(top,schEl('strong','',e.title));
+  if(e.opponent)c.append(schEl('div','eh-muted','vs '+e.opponent));
+  if(e.notes)c.append(schEl('p','',e.notes));
+  return c;
+}
+function schList(box,evs){
+  if(!evs.length){box.append(schEl('p','eh-muted','No events scheduled.'));return;}
+  const today=new Date();today.setHours(0,0,0,0);
+  const up=evs.filter(e=>e.d>=today),past=evs.filter(e=>e.d<today).reverse();
+  const group=arr=>{const f=document.createDocumentFragment();let last='';arr.forEach(e=>{const k=schDay(e.d);if(k!==last){last=k;f.append(schEl('h3','sch-day',e.d.toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric',year:'numeric'})));}f.append(schCard(e));});return f;};
+  box.append(up.length?group(up):schEl('p','eh-muted','No upcoming events.'));
+  if(past.length){const d=schEl('details','sch-past');d.append(schEl('summary','',`Past events (${past.length})`),group(past));box.append(d);}
+}
+function schCalendar(box,evs){
+  const m=s.calMonth,y=m.getFullYear(),mo=m.getMonth(),now=new Date(),todayKey=schDay(now);
+  if(!s.calSel)s.calSel=todayKey;
+  const head=schEl('div','sch-calhead');
+  const btn=(label,aria,fn)=>{const b=schEl('button','eh-btn',label);b.type='button';b.setAttribute('aria-label',aria);b.onclick=fn;return b;};
+  head.append(btn('‹','Previous month',()=>{s.calMonth=new Date(y,mo-1,1);renderSchedule();}),
+    schEl('strong','',m.toLocaleDateString(undefined,{month:'long',year:'numeric'})),
+    btn('Today','Go to today',()=>{s.calMonth=new Date(now.getFullYear(),now.getMonth(),1);s.calSel=todayKey;renderSchedule();}),
+    btn('›','Next month',()=>{s.calMonth=new Date(y,mo+1,1);renderSchedule();}));
+  const byDay={};evs.forEach(e=>{(byDay[schDay(e.d)]=byDay[schDay(e.d)]||[]).push(e);});
+  const grid=schEl('div','sch-grid');
+  ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].forEach(d=>grid.append(schEl('div','sch-dow',d)));
+  const first=new Date(y,mo,1),weeks=Math.ceil((first.getDay()+new Date(y,mo+1,0).getDate())/7);
+  for(let i=0;i<weeks*7;i++){
+    const d=new Date(y,mo,1-first.getDay()+i),k=schDay(d),list=byDay[k]||[];
+    const cell=schEl('button','sch-cell'+(d.getMonth()!==mo?' other':'')+(k===todayKey?' today':'')+(k===s.calSel?' sel':''));
+    cell.type='button';cell.setAttribute('aria-label',d.toLocaleDateString(undefined,{dateStyle:'full'})+', '+list.length+' events');
+    cell.append(schEl('span','sch-num',String(d.getDate())));
+    list.slice(0,3).forEach(e=>cell.append(schEl('span','sch-chip sch-'+schType(e.type),schTime(e.d)+' '+e.title)));
+    if(list.length>3)cell.append(schEl('span','sch-more','+'+(list.length-3)+' more'));
+    cell.onclick=()=>{s.calSel=k;const di=document.querySelector('#eventForm [name=date]');if(di)di.value=k;renderSchedule();};
+    grid.append(cell);
+  }
+  box.append(head,grid);
+  const [sy,sm,sd]=s.calSel.split('-').map(Number),view=schEl('div','sch-dayview');
+  view.append(schEl('h3','sch-day',new Date(sy,sm-1,sd).toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric',year:'numeric'})));
+  const todays=byDay[s.calSel]||[];
+  if(todays.length)todays.forEach(e=>view.append(schCard(e)));else view.append(schEl('p','eh-muted','No events this day.'));
+  box.append(view);
+}
+function renderSchedule(){
+  const box=$('events');box.replaceChildren();
+  const bar=schEl('div','sch-bar');
+  [['list','List'],['calendar','Calendar']].forEach(([v,label])=>{
+    const b=schEl('button','eh-btn',label);b.type='button';b.setAttribute('aria-pressed',String(s.schedView===v));
+    b.onclick=()=>{s.schedView=v;try{localStorage.setItem('eh_sched_view',v);}catch{}renderSchedule();};bar.append(b);
+  });
+  box.append(bar);
+  const evs=(s.events||[]).map(e=>({...e,d:new Date(e.starts_at)})).filter(e=>!isNaN(e.d)).sort((a,b)=>a.d-b.d);
+  if(s.schedView==='calendar')schCalendar(box,evs);else schList(box,evs);
 }
