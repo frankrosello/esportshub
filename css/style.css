@@ -232,3 +232,5 @@ body{overflow-x:hidden}
 .eh-week-grid [hidden]{display:none!important}.eh-week-wrap{max-height:none;overflow-y:visible}.eh-week-grid .cell{min-height:16px}.eh-week-grid .time{padding:1px 5px;font-size:10px;white-space:nowrap}.eh-week-grid{grid-template-columns:76px repeat(7,minmax(40px,1fr));min-width:390px}.eh-period{display:flex;gap:8px;margin:12px 0}.eh-period [aria-pressed="false"]{opacity:.65}.eh-rich-notes,.eh-note-preview{white-space:normal}.eh-rich-notes>div{white-space:pre-wrap}.eh-rich-notes ul,.eh-rich-notes ol,.eh-note-preview ul,.eh-note-preview ol{padding-left:24px;margin:8px 0}.eh-rich-notes li{margin:4px 0}.eh-editor{width:min(580px,92vw);max-height:90vh;overflow:auto}.eh-editor textarea{min-height:180px}.eh-editor::backdrop{background:#0009}
 
 .eh-necc-settings{border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:18px}.eh-necc-settings input[type=checkbox]{display:inline-block;min-height:0;margin-right:8px}.eh-necc-settings input[type=url]{width:100%}
+
+.eh-delete-event{margin-left:8px;background:#a52e45}
