@@ -49,7 +49,7 @@ let noticeTimer;const notify=(msg,error=false)=>{clearTimeout(noticeTimer);const
 let activeViewRole='';let assignedRoles=[];
 const admin=()=>s.me?.roles.some(m=>m.role==='admin');
 const managesGame=id=>admin()||s.me?.roles.some(m=>m.role==='game_manager'&&m.game_id===id);
-const managesTeam=t=>managesGame(t.game_id)||s.me?.roles.some(m=>['captain','team_manager'].includes(m.role)&&m.team_id===t.id);
+const managesTeam=t=>managesGame(t.game_id)||s.me?.roles.some(m=>['captain','team_manager','coach'].includes(m.role)&&m.team_id===t.id);
 const EASTERN_ZONE='America/New_York';
 function easternParts(value){return Object.fromEntries(new Intl.DateTimeFormat('en-US',{timeZone:EASTERN_ZONE,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date(value)).map(p=>[p.type,p.value]));}
 function easternDay(value){const p=easternParts(value);return `${p.year}-${p.month}-${p.day}`;}
@@ -63,10 +63,23 @@ function fromEasternInput(day,time){
  return matches[0];
 }
 const fmt=date=>{const d=new Date(date);return isNaN(d)?'Date unavailable':d.toLocaleString('en-US',{timeZone:EASTERN_ZONE,month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true,timeZoneName:'short'});};
-async function api(path,method='GET',body){const token=await window.Clerk?.session?.getToken();if(!token)throw Error('Sign in with Clerk first');const r=await fetch(apiUrl(path),{method,redirect:'error',credentials:'omit',referrerPolicy:'no-referrer',headers:{Authorization:`Bearer ${token}`,...(activeViewRole&&path!=='/me'?{'X-View-Role':activeViewRole}:{}),...(body!==undefined?{'Content-Type':'application/json'}:{})},...(body!==undefined?{body:JSON.stringify(body)}:{})});const data=await r.json().catch(()=>({}));if(!r.ok)throw Object.assign(Error(data.error||`API request failed (${r.status})`),{status:r.status});return data;}
+async function requestApi(path,method='GET',body){const token=await window.Clerk?.session?.getToken();if(!token)throw Error('Sign in with Clerk first');const r=await fetch(apiUrl(path),{method,redirect:'error',credentials:'omit',referrerPolicy:'no-referrer',headers:{Authorization:`Bearer ${token}`,...(activeViewRole&&path!=='/me'?{'X-View-Role':activeViewRole}:{}),...(body!==undefined?{'Content-Type':'application/json'}:{})},...(body!==undefined?{body:JSON.stringify(body)}:{})});const data=await r.json().catch(()=>({}));if(!r.ok)throw Object.assign(Error(data.error||`API request failed (${r.status})`),{status:r.status});return data;}
+// Share short-lived profile reads across roster avatars, cards, and settings.
+const profileReads=new Map();let profileCacheGeneration=0;
+function clearProfileReads(){profileCacheGeneration++;profileReads.clear();}
+async function api(path,method='GET',body){
+ if(method!=='GET'){if(path.startsWith('/me/'))clearProfileReads();try{return await requestApi(path,method,body);}finally{if(path.startsWith('/me/'))clearProfileReads();}}
+ if(!/^\/profile\/[^/]+$/.test(path))return requestApi(path,method,body);
+ const key=[window.Clerk?.user?.id||'',activeViewRole,path].join('|'),cached=profileReads.get(key);
+ if(cached&&(cached.pending||cached.expires>Date.now()))return cached.promise;
+ const generation=profileCacheGeneration,entry={pending:true,expires:0};
+ entry.promise=requestApi(path).then(data=>{entry.pending=false;entry.expires=Date.now()+15000;if(generation!==profileCacheGeneration&&profileReads.get(key)===entry)profileReads.delete(key);return data;},error=>{if(profileReads.get(key)===entry)profileReads.delete(key);throw error;});
+ profileReads.set(key,entry);return entry.promise;
+}
+
 function listOptions(el,items,label){el.innerHTML=items.map(t=>`<option value="${escapeHtml(t.id)}">${escapeHtml(label(t))}</option>`).join('');}
 function selectedLabel(){return s.team?`${s.team.game_name} / ${s.team.name}`:'Select a team under Teams first';}
-function go(page){const screens=['dashboard','teams','schedule','availability','reports','concerns','invitations','members','settings','matchsync'];if(!screens.includes(page))page='dashboard';if(!s.me&&page!=='dashboard')page='dashboard';if(page==='members'&&!admin())page='dashboard';if(page==='matchsync'&&!canViewMatchSync())page='dashboard';if(page==='matchsync')renderMatchSyncPage();document.querySelectorAll('[data-panel]').forEach(x=>x.classList.toggle('hidden',x.dataset.panel!==page));document.querySelectorAll('[data-screen]').forEach(x=>x.classList.toggle('active',x.dataset.screen===page));$('breadcrumbCurrent').textContent=({dashboard:'Overview',teams:'Teams',schedule:'Schedule',availability:'Availability',reports:'Reports',concerns:'Player concerns',invitations:'Invitations',members:'Members',settings:'Settings',matchsync:'Match Sync'})[page];document.querySelectorAll('.eh-selected').forEach(x=>x.textContent=selectedLabel());const destination=new URL(routes.home());destination.search=new URL(location.href).search;destination.hash=page;history.replaceState(null,'',destination.href);setMobileNav(false);}
+function go(page){const screens=['dashboard','teams','schedule','availability','reports','concerns','invitations','members','settings','matchsync'];if(!screens.includes(page))page='dashboard';if(!s.me&&page!=='dashboard')page='dashboard';if(page==='members'&&!admin())page='dashboard';if(page==='matchsync'&&!canViewMatchSync())page='dashboard';if(page==='matchsync')renderMatchSyncPage();document.querySelectorAll('[data-panel]').forEach(x=>x.classList.toggle('hidden',x.dataset.panel!==page));document.querySelectorAll('[data-screen]').forEach(x=>x.classList.toggle('active',x.dataset.screen===page));$('breadcrumbCurrent').textContent=({dashboard:'Overview',teams:'Teams',schedule:'Schedule',availability:'Availability',reports:'Reports',concerns:'Player concerns',invitations:'Invitations',members:'Members',settings:'Settings',matchsync:'Match Sync'})[page];document.querySelectorAll('.eh-selected').forEach(x=>x.textContent=selectedLabel());const destination=new URL(routes.home());destination.search=new URL(location.href).search;destination.hash=page;history.replaceState(null,'',destination.href);updateTabTitle(page);setMobileNav(false);}
 function renderTeams(){
  const el=$('teamsMirror');el.replaceChildren();
  if(!s.teams.length){el.textContent='No assigned team yet. Your captain or manager can ask an administrator to assign you.';return;}
@@ -92,7 +105,7 @@ form('eventForm',async b=>{if(!s.team)throw Error('Select a team first');const w
 form('reportForm',async b=>{if(!s.team)throw Error('Select a team first');await api(`/teams/${s.team.id}/reports`,'POST',b);await selectTeam(s.team);notify('Report published');});
 form('concernForm',async b=>{if(!s.team)throw Error('Select a team first');await api(`/teams/${s.team.id}/concerns`,'POST',b);if(managesGame(s.team.game_id))await selectTeam(s.team);notify('Private concern submitted');});
 form('availabilityForm',async()=>{if(!s.team)throw Error('Select a team first');await api(`/teams/${s.team.id}/availability`,'PUT',{slots:[...s.slots].sort((a,b)=>a-b)});await selectTeam(s.team);notify('Availability saved');});
-form('inviteForm',async b=>{const data={role:b.role,maxUses:b.role==='player'?Number(b.maxUses||1):1};if(b.role==='game_manager')data.gameId=b.gameId;if(b.role==='captain'||b.role==='player')data.teamId=b.teamId;const r=await api('/invites','POST',data);const box=$('inviteResult');box.replaceChildren();const p=document.createElement('p');p.textContent=`Share this invitation link privately (maximum ${r.maxUses} ${r.maxUses===1?'member':'members'}, expires in 72 hours):`;const input=document.createElement('input');input.readOnly=true;input.value=routes.home({invite:r.token});box.append(p,input);notify('Invitation created.');});
+form('inviteForm',async b=>{const data={role:b.role,maxUses:b.role==='player'?Number(b.maxUses||1):1};if(b.role==='game_manager')data.gameId=b.gameId;if(['captain','coach','player'].includes(b.role))data.teamId=b.teamId;const r=await api('/invites','POST',data);const box=$('inviteResult');box.replaceChildren();const p=document.createElement('p');p.textContent=`Share this invitation link privately (maximum ${r.maxUses} ${r.maxUses===1?'member':'members'}, expires in 72 hours):`;const input=document.createElement('input');input.readOnly=true;input.value=routes.home({invite:r.token});box.append(p,input);notify('Invitation created.');});
 let directory=[];
 async function loadMemberDirectory(){
   directory=await api('/members');
@@ -126,9 +139,9 @@ function chooseAssignment(){
 }
 function updateAssignmentScope(){
   const role=$('memberRole').value;
-  $('memberTeamField').classList.toggle('hidden',!['player','captain','team_manager'].includes(role));
+  $('memberTeamField').classList.toggle('hidden',!['player','captain','team_manager','coach'].includes(role));
   $('memberGameField').classList.toggle('hidden',role!=='game_manager');
-  $('memberTeam').required=['captain','team_manager'].includes(role);
+  $('memberTeam').required=['captain','team_manager','coach'].includes(role);
   $('memberGame').required=role==='game_manager';
 }
 $('memberUser').addEventListener('change',chooseMember);
@@ -189,7 +202,7 @@ function mountClerk(){
  if(!s.clerkReady||activeClerkSession())return;
  const mode=currentAuthMode(),signup=mode==='signup',returnUrl=authReturnUrl();
  $('authCard').classList.toggle('hidden',signup);$('signUpCard').classList.toggle('hidden',!signup);
- $('authSignInTab').setAttribute('aria-pressed',String(!signup));$('authSignUpTab').setAttribute('aria-pressed',String(signup));
+ document.title=(signup?'Create account':'Sign in')+' | EsportsHub';$('authSignInTab').setAttribute('aria-pressed',String(!signup));$('authSignUpTab').setAttribute('aria-pressed',String(signup));
  if(signup&&signInMounted){window.Clerk.unmountSignIn($('clerk-sign-in'));signInMounted=false;}
  if(!signup&&signUpMounted){window.Clerk.unmountSignUp($('clerk-sign-up'));signUpMounted=false;}
  const options={...routes.clerkOptions(returnUrl,pendingInvite),routing:'hash',forceRedirectUrl:returnUrl,fallbackRedirectUrl:returnUrl,appearance:{elements:{rootBox:{width:'100%',maxWidth:'100%'},cardBox:{width:'100%',maxWidth:'100%'},card:{width:'100%',maxWidth:'100%'},formFieldInput:{fontSize:'16px'}}}};
@@ -199,7 +212,7 @@ function mountClerk(){
   $(signup?'signUpLoading':'signInLoading').textContent='';
  }catch(error){$(signup?'signUpLoading':'signInLoading').textContent='Unable to load authentication: '+error.message;}
 }
-function showGuest(msg){clearProfileDraft();stopLivePresence();if($('onboardingDialog')?.open)$('onboardingDialog').close();if($('profileDialog')?.open)$('profileDialog').close();$('accountMiniProfile').replaceChildren();s.me=null;s.team=null;activeViewRole='';assignedRoles=[];renderRoleSelector();setAccountMenu(false);$('loginPage').classList.remove('hidden');$('dashboardShell').classList.add('hidden');$('guest').classList.remove('hidden');$('signed').classList.add('hidden');$('logout').classList.add('hidden');$('authStatus').textContent='Sign in required';$('sidebarName').textContent='Not signed in';$('sidebarRole').textContent='Clerk authentication';$('guestNotice').textContent=msg||'';$('accountRecovery').classList.toggle('hidden',!window.Clerk?.user||!msg);$('accountRecoveryStatus').textContent=msg||'';mountClerk();}
+function showGuest(msg){clearProfileReads();clearProfileDraft();stopLivePresence();if($('onboardingDialog')?.open)$('onboardingDialog').close();if($('profileDialog')?.open)$('profileDialog').close();$('accountMiniProfile').replaceChildren();s.me=null;s.team=null;activeViewRole='';assignedRoles=[];renderRoleSelector();setAccountMenu(false);$('loginPage').classList.remove('hidden');$('dashboardShell').classList.add('hidden');$('guest').classList.remove('hidden');$('signed').classList.add('hidden');$('logout').classList.add('hidden');$('authStatus').textContent='Sign in required';$('sidebarName').textContent='Not signed in';$('sidebarRole').textContent='Clerk authentication';$('guestNotice').textContent=msg||'';$('accountRecovery').classList.toggle('hidden',!window.Clerk?.user||!msg);$('accountRecoveryStatus').textContent=msg||'';mountClerk();}
 function resetInvite(){pendingInvite='';inviteDetails=null;try{sessionStorage.removeItem(pendingKey);}catch{}const url=new URL(location.href);url.searchParams.delete('invite');history.replaceState(null,'',url.href);$('invitationCard').classList.add('hidden');}
 async function showInvitation(){
   showGuest();unmountClerk();$('authCard').classList.add('hidden');$('signUpCard').classList.add('hidden');$('invitationCard').classList.remove('hidden');$('inviteAuthButtons').classList.add('hidden');$('acceptInvite').classList.add('hidden');$('invitationStatus').textContent='Checking your invitation…';
@@ -318,10 +331,10 @@ async function bannerBlobUrl(userId){
   if(!r.ok)throw Error('No banner ('+r.status+')');
   return bannerCache[userId]=URL.createObjectURL(await r.blob());
 }
-async function applyBannerFor(el,value,userId){
+async function applyBannerFor(el,value,userId,isCurrent=()=>true){
   applyBanner(el,value);
   if(value!=='upload')return null;
-  try{const url=await bannerBlobUrl(userId);el.style.backgroundImage='url("'+url+'")';return url;}catch{return null;}
+  try{const url=await bannerBlobUrl(userId);if(!isCurrent())return null;el.style.backgroundImage='url("'+url+'")';return url;}catch{return null;}
 }
 async function uploadBanner(f){
   if(f.size>4*1024*1024)throw Error('Banner is over 4 MB');
@@ -381,17 +394,18 @@ document.addEventListener('click',async e=>{
   $('pdName').textContent=name;$('pdMeta').textContent='';$('pdRole').textContent=roleLabel(role);
   $('pdMain').textContent='';$('pdGames').textContent='';$('pdDiscord').textContent='';$('pdNote').textContent='Loading…';
   applyBanner($('pdBanner'),'preset:purple');setAvatar(null,name);$('pdMainWrap').classList.add('hidden');
-  pd.showModal();
+  pd.showModal();updateTabTitle();
   try{
     const p=await api('/profile/'+encodeURIComponent(uid));if(!pd.open||pd.dataset.profileUser!==uid)return;
     $('pdName').textContent=p.name||name;
     $('pdMeta').textContent=p.username?'@'+p.username:'';$('pdDiscord').textContent=p.discord_username||'Not provided';
-    const bUrl=await applyBannerFor($('pdBanner'),p.banner,uid);setAvatar(p.image_url,p.name||name);
+    setAvatar(p.image_url,p.name||name);
+    void applyBannerFor($('pdBanner'),p.banner,uid,()=>pd.open&&pd.dataset.profileUser===uid);
     const main=(s.games.find(g=>g.id===p.main_game_id)||{}).name||p.main_game_name;
     $('pdMain').textContent=main||'';$('pdMainWrap').classList.toggle('hidden',!main);
     const list=(p.game_usernames||[]).map(x=>`<div class="eh-ign"><span>${escapeHtml(x.game_name||'Game')}</span><strong>${escapeHtml(x.username)}</strong></div>`).join('');
     $('pdGames').innerHTML=list||'<span class="eh-muted">None added yet.</span>';$('pdNote').textContent='';
-    pd.style.setProperty('--pc',await profileColor(p.banner==='upload'?bUrl:p.banner,p.image_url));showCustomization(p);
+    pd.style.setProperty('--pc',PRESET_COLORS[(p.banner||'').replace('preset:','')]||PRESET_COLORS.purple);showCustomization(p);updateTabTitle();
   }catch(err){$('pdNote').textContent='Could not load full profile: '+err.message;}
 });
 // ---- Admin: reorder teams ----
@@ -472,6 +486,7 @@ function schCalendar(box,evs){
   box.append(view);
 }
 function renderSchedule(){
+  if(location.hash==='#schedule')updateTabTitle('schedule');
   const box=$('events');box.replaceChildren();
   const bar=schEl('div','sch-bar');
   const teamLabel=schEl('label','eh-schedule-filter','Team '),teamSelect=document.createElement('select');teamSelect.setAttribute('aria-label','Schedule team filter');
@@ -519,7 +534,7 @@ function renderDashboard(){
  $('dashResults').innerHTML=d.results.map(e=>{const win=e.team_score>e.opponent_score,outcome=win?'Win':e.team_score<e.opponent_score?'Loss':'Draw';return `<div class="eh-item eh-result-summary"><div><strong>${esc(e.opponent||e.title)}</strong><div class="eh-muted">${esc(fmt(e.starts_at))}</div></div><div><strong class="eh-result-${outcome.toLowerCase()}">${outcome} ${Number(e.team_score)}–${Number(e.opponent_score)}</strong><small>${e.result_source==='necc_page'?'NECC result':'Recorded result'}</small></div></div>`;}).join('')||'<p class="eh-muted">No final scores recorded yet. Results appear here once entered or synced.</p>';
  const reports=(s.teamReports||[]).slice().sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0)).slice(0,3);
  $('dashReports').innerHTML=reports.map(r=>`<div class="eh-item"><strong>${esc(r.title)}</strong><div class="eh-muted">${esc(roleLabel(r.type||'report'))} · ${esc(r.author||'')}${r.created_at?' · '+esc(fmt(r.created_at)):''}</div><div class="eh-note-preview">${formatNotes(r.content||'')}</div></div>`).join('')||'<p class="eh-muted">No shared coaching or scrim notes yet.</p>';
- const members=s.teamMembers||[],contacts=[...new Map(members.filter(m=>['captain','team_manager','game_manager'].includes(m.role)).map(m=>[`${m.user_id||m.id}:${m.role}`,m])).values()];
+ const members=s.teamMembers||[],contacts=[...new Map(members.filter(m=>['captain','coach','team_manager','game_manager'].includes(m.role)).map(m=>[`${m.user_id||m.id}:${m.role}`,m])).values()];
  $('dashContacts').innerHTML=contacts.map(m=>`<div class="eh-contact"><div><strong>${esc(name(m))}</strong><small>${esc(roleLabel(m.role))}</small></div>${profileButton(m)}</div>`).join('')||'<p class="eh-muted">No captain or manager contacts are visible for this team.</p>';
  const actions=[];if(s.team&&onRoster&&!mine)actions.push(['Submit your availability','Help your team find practice times.','availability']);if(s.team&&d.missing.length)actions.push([`${d.missing.length} missing weekly schedules`,d.missing.map(name).join(', '),'availability']);if(s.team&&!next)actions.push(['No upcoming sessions','Check the schedule with your captain or manager.','schedule']);if(!reports.length&&s.team)actions.push(['No shared team notes','Open Reports for scrim and VOD reviews.','reports']);
  $('dashActions').innerHTML=actions.map(([title,detail,page])=>`<div class="eh-item"><strong>${esc(title)}</strong><p class="eh-muted">${esc(detail)}</p><button class="eh-btn tiny" type="button" data-dashboard-go="${page}">Open ${roleLabel(page)}</button></div>`).join('')||`<p class="eh-muted">${s.team?'No missing schedules or upcoming-session gaps detected.':'Select or join a team to see relevant follow-ups.'}</p>`;
@@ -533,7 +548,7 @@ function renderRoster(){
  const subs=others.filter(m=>['sub','substitute'].includes(String(m.roster_status||m.lineup_status||m.position||'').toLowerCase()));
  const starters=others.filter(m=>!subs.includes(m));
  const group=(title,items)=>`<section class="eh-roster-group"><h3>${title} <span class="eh-muted">(${items.length})</span></h3>`+(items.map(m=>`<div class="eh-roster-member"><div class="eh-roster-identity">${rosterAvatar(m)}<div><div class="eh-member-name"><strong>${escapeHtml(m.display_name||m.name)}</strong><span class="eh-inline-username">${m.username?'@'+escapeHtml(m.username):'Username not set'}</span></div><div class="eh-muted">${escapeHtml(roleLabel(m.role||'player'))} · <span class="eh-live-presence" data-presence="${escapeHtml(m.presence||'offline')}">${escapeHtml(presenceLabel(m.presence||'offline'))}</span></div></div></div><div class="eh-roster-actions">${profileButton(m)}${can&&m.role==='player'?`<select aria-label="Lineup status for ${escapeHtml(m.display_name)}" data-lineup-user="${escapeHtml(m.user_id||m.id)}"><option value="starter" ${!subs.includes(m)?'selected':''}>Starter</option><option value="sub" ${subs.includes(m)?'selected':''}>Substitute</option></select>`:''}</div></div>`).join('')||'<p class="eh-muted">No members in this section.</p>')+'</section>';
- target.innerHTML=group('Captain',captains)+group('Players · Starters',starters)+group('Substitutes',subs);loadRosterAvatars(target);
+ target.innerHTML=group('Captain',captains)+group('Coaches',members.filter(m=>m.role==='coach'))+group('Players · Starters',starters)+group('Substitutes',subs);loadRosterAvatars(target);
 }
 $('members').addEventListener('change',async e=>{
  const sel=e.target.closest('[data-lineup-user]');if(!sel||!s.team||!managesTeam(s.team))return;
@@ -764,16 +779,17 @@ $('profileForm').addEventListener('input',()=>renderProfilePreview());$('profile
 $('resetProfileStyle').onclick=()=>{s.profileDirty=true;s.profileEditVersion=(s.profileEditVersion||0)+1;updateProfileDraftNotice();for(const [id,value] of [['pfColorPrimary','#501d83'],['pfColorAccent','#b095de'],['pfProfileTheme','auto'],['pfAvatarFrame','none'],['pfEffect','none'],['pfBannerPosition','50']])$(id).value=value;renderProfilePreview();};
 
 async function loadAccountMiniProfile(){
- if(!s.me)return;const uid=s.me.user.id,request=(s.miniProfileRequest||0)+1;s.miniProfileRequest=request;const box=$('accountMiniProfile');box.textContent='Loading your profile…';
+ if(!s.me)return;const uid=s.me.user.id,request=(s.miniProfileRequest||0)+1;s.miniProfileRequest=request;const box=$('accountMiniProfile');if(!box.firstChild)box.textContent='Loading your profile…';
  try{const p=await api('/profile/'+encodeURIComponent(uid));if(s.miniProfileRequest!==request||s.me?.user.id!==uid)return;const v=p.customization||{},name=v.display_name||p.name||'Member';
  box.innerHTML=`<div class="eh-mini-banner"></div><div class="eh-mini-body"><div class="eh-mini-avatar"></div><h3>${escapeHtml(name)}</h3><p class="eh-muted">${p.username?'@'+escapeHtml(p.username):escapeHtml(p.name||'')}${v.pronouns?' · '+escapeHtml(v.pronouns):''}</p><span class="eh-presence-label">${escapeHtml(presenceLabel(p.presence||'offline'))}</span><p>${escapeHtml([v.status_emoji,v.status_text].filter(Boolean).join(' '))}</p>${v.bio?`<div class="eh-mini-bio">${formatNotes(v.bio)}</div>`:''}<small class="eh-muted">${escapeHtml([...new Set((s.me.roles||[]).map(m=>roleLabel(m.role)))].join(' · '))}</small></div>`;
  const avatar=box.querySelector('.eh-mini-avatar'),banner=box.querySelector('.eh-mini-banner');avatar.textContent=name.split(/\s+/).slice(0,2).map(x=>x[0]).join('');if(trustedAvatar(p.image_url)){const image=document.createElement('img');image.alt='';image.referrerPolicy='no-referrer';image.src=p.image_url;image.onerror=()=>image.remove();avatar.append(image);}
- await applyBannerFor(banner,p.banner,uid);if(s.miniProfileRequest!==request)return;applyProfileStyle(box,avatar,banner,v);applyProfileStyle($('accountDropup'),avatar,banner,v);
+ applyProfileStyle(box,avatar,banner,v);applyProfileStyle($('accountDropup'),avatar,banner,v);
+ void applyBannerFor(banner,p.banner,uid,()=>s.miniProfileRequest===request&&s.me?.user.id===uid);
  }catch(error){if(s.miniProfileRequest===request)box.textContent='Unable to load profile: '+error.message;}
 }
 
 function showProfileOnboarding(){
- $('loginPage').classList.add('hidden');$('dashboardShell').classList.add('hidden');const dialog=$('onboardingDialog'),user=window.Clerk.user;if(dialog.open)return;
+ $('loginPage').classList.add('hidden');$('dashboardShell').classList.add('hidden');const dialog=$('onboardingDialog'),user=window.Clerk.user;document.title='Set up your profile | EsportsHub';if(dialog.open)return;
  $('obFirst').value=user?.firstName||'';$('obLast').value=user?.lastName||'';$('obUsername').value=s.me?.user.username||'';$('onboardingStatus').textContent='';if(!dialog.open)dialog.showModal();
 }
 $('onboardingDialog').addEventListener('cancel',e=>e.preventDefault());
@@ -798,7 +814,7 @@ function setupSettingsTabs(){
  for(const [id,label,panel] of categories){panel.dataset.settingsPanel=id;panel.id='settings-panel-'+id;const button=document.createElement('button');button.type='button';button.textContent=label;button.dataset.settingsTab=id;button.setAttribute('aria-controls',panel.id);button.onclick=()=>setSettingsTab(id);nav.append(button);content.append(panel);}
  layout.append(nav,content);page.append(layout);$('settingsAccountManage').onclick=()=>window.Clerk?.openUserProfile?.();setSettingsTab('profile');
 }
-function setSettingsTab(id){document.querySelectorAll('[data-settings-panel]').forEach(p=>{p.hidden=p.dataset.settingsPanel!==id;});document.querySelectorAll('[data-settings-tab]').forEach(b=>b.setAttribute('aria-current',b.dataset.settingsTab===id?'page':'false'));}
+function setSettingsTab(id){document.querySelectorAll('[data-settings-panel]').forEach(p=>{p.hidden=p.dataset.settingsPanel!==id;});document.querySelectorAll('[data-settings-tab]').forEach(b=>b.setAttribute('aria-current',b.dataset.settingsTab===id?'page':'false'));updateTabTitle('settings');}
 setupSettingsTabs();
 
 $('closeMobileNav').onclick=()=>{setMobileNav(false);$('menuButton').focus();};
@@ -827,3 +843,14 @@ function clearProfileDraft(){s.profileDirty=false;s.profileSaving=false;s.profil
 for(const type of ['input','change'])$('profileForm').addEventListener(type,()=>{if(!s.me||s.profileSaving)return;s.profileDirty=true;s.profileEditVersion=(s.profileEditVersion||0)+1;s.profileOwner=s.me.user.id;updateProfileDraftNotice();});
 $('discardProfileChanges').onclick=async()=>{if(s.profileSaving)return;if(s.profileDirty&&!window.confirm('Discard your unsaved profile changes?'))return;const loaded=await fillProfile(true);if(loaded){$('pfAvatar').value='';$('pfBannerFile').value='';refreshBannerPreview();renderProfilePreview();}};
 window.addEventListener('beforeunload',e=>{if(s.profileDirty){e.preventDefault();e.returnValue='';}});
+
+function updateTabTitle(page){
+ if(!s.me){document.title=(currentAuthMode()==='signup'?'Create account':'Sign in')+' | EsportsHub';return;}
+ if($('onboardingDialog')?.open){document.title='Set up your profile | EsportsHub';return;}
+ if(pd.open){document.title=($('pdName').textContent||'Player')+' — Profile | EsportsHub';return;}
+ const screen=page||(location.hash||'#dashboard').slice(1),labels={dashboard:'Overview',teams:'Teams',schedule:'Schedule',availability:'Availability',reports:'Scrim & VOD Reports',concerns:'Player Concerns',invitations:'Invitations',members:'Members',settings:'Settings',matchsync:'Match Sync'};
+ let label=labels[screen]||'Overview';if(screen==='settings'){const current=document.querySelector('[data-settings-tab][aria-current="page"]');if(current)label=current.textContent+' — Settings';}
+ const scoped=['dashboard','teams','schedule','availability','reports'].includes(screen),team=screen==='schedule'&&s.scheduleScope==='all'?'All Teams':s.team?.name;
+ document.title=[label,scoped?team:null,'EsportsHub'].filter(Boolean).join(' | ');
+}
+pd.addEventListener('close',()=>updateTabTitle());
