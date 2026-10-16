@@ -565,7 +565,7 @@ function renderNeccSettings(box){
  const url=`/teams/${encodeURIComponent(teamId)}/necc`;
  async function load(){try{const c=await api(url);if(!section.isConnected)return;input.value=c?.team_url||'';enabled.checked=c?!!c.enabled:true;sync.disabled=!c;status.textContent=c?`${c.enabled?'Auto-sync enabled (requires Worker Cron Trigger).':'Auto-sync paused.'} Last successful sync: ${c.last_synced?fmt(c.last_synced):'Never'}.${c.last_error?' Last error: '+c.last_error:''}`:'Save your NECC team link, then select Sync now.';}catch(e){status.textContent=e.message;}}
  form.onsubmit=async e=>{e.preventDefault();save.disabled=true;try{await api(url,'PUT',{url:input.value.trim(),enabled:enabled.checked});await load();}catch(e){status.textContent=e.message;}finally{save.disabled=false;}};
- sync.onclick=async()=>{sync.disabled=true;status.textContent='Syncing NECC matches…';try{const r=await api(url+'/sync','POST',{});if(s.team?.id===teamId)await selectTeam(s.team);notify(`NECC sync complete: ${r.matched} matches processed. ${r.results?.enabled?`${r.results.synced} results updated, ${r.results.failed} awaiting results or unavailable.`:'Result page syncing requires Cloudflare Browser Rendering setup.'}`);}catch(e){status.textContent=e.message;}finally{sync.disabled=false;}};
+ sync.onclick=async()=>{sync.disabled=true;status.textContent='Syncing NECC matches…';try{const r=await api(url+'/sync','POST',{});if(s.team?.id===teamId)await selectTeam(s.team);notify(`NECC sync complete: ${r.matched} matches processed. ${r.results?.enabled?`${r.results.synced} results updated, ${r.results.pending||0} not published yet, ${r.results.failed} failed.`:'Result page syncing requires Cloudflare Browser Rendering setup.'}`);}catch(e){status.textContent=e.message;}finally{sync.disabled=false;}};
  void load();
 }
 
@@ -618,7 +618,7 @@ function appendEventResult(card,event){
  if(event.necc_match_id&&s.team&&(admin()||s.me?.roles.some(m=>m.role==='team_manager'&&m.team_id===s.team.id))){
   const sync=schEl('button','eh-btn tiny','Sync NECC result'),status=schEl('span','eh-result-sync-message');status.setAttribute('role','status');sync.type='button';
   sync.onclick=async()=>{if(sync.disabled)return;const teamId=s.team.id;sync.disabled=true;sync.textContent='Reading NECC match…';status.textContent='Opening the match page and checking its scoreboard. This can take up to 45 seconds.';
-   try{const result=await api(`/teams/${encodeURIComponent(teamId)}/events/${encodeURIComponent(event.id)}/result/sync`,'POST',{});status.textContent=`Result synced: ${result.teamScore} – ${result.opponentScore}.`;if(s.team?.id===teamId)await selectTeam(s.team);notify('NECC result synced.');}
+   try{const result=await api(`/teams/${encodeURIComponent(teamId)}/events/${encodeURIComponent(event.id)}/result/sync`,'POST',{});if(result.pending){status.textContent=result.message||'No result published yet.';status.classList.remove('eh-result-sync-error');return;}status.textContent=result.status==='cancelled'?'Match cancelled.':`Result synced: ${result.teamScore} – ${result.opponentScore}.`;if(s.team?.id===teamId)await selectTeam(s.team);notify('NECC result synced.');}
    catch(e){status.textContent=e.message;status.classList.add('eh-result-sync-error');notify(e.message,true);}
    finally{sync.disabled=false;sync.textContent='Sync NECC result';}
   };row.append(sync,status);
