@@ -68,8 +68,8 @@ function listOptions(el,items,label){el.innerHTML=items.map(t=>`<option value="$
 function selectedLabel(){return s.team?`${s.team.game_name} / ${s.team.name}`:'Select a team under Teams first';}
 function go(page){const screens=['dashboard','teams','schedule','availability','reports','concerns','invitations','members','settings','matchsync'];if(!screens.includes(page))page='dashboard';if(!s.me&&page!=='dashboard')page='dashboard';if(page==='members'&&!admin())page='dashboard';if(page==='matchsync'&&!canViewMatchSync())page='dashboard';if(page==='matchsync')renderMatchSyncPage();document.querySelectorAll('[data-panel]').forEach(x=>x.classList.toggle('hidden',x.dataset.panel!==page));document.querySelectorAll('[data-screen]').forEach(x=>x.classList.toggle('active',x.dataset.screen===page));$('breadcrumbCurrent').textContent=({dashboard:'Overview',teams:'Teams',schedule:'Schedule',availability:'Availability',reports:'Reports',concerns:'Player concerns',invitations:'Invitations',members:'Members',settings:'Settings',matchsync:'Match Sync'})[page];document.querySelectorAll('.eh-selected').forEach(x=>x.textContent=selectedLabel());const destination=new URL(routes.home());destination.search=new URL(location.href).search;destination.hash=page;history.replaceState(null,'',destination.href);setMobileNav(false);}
 function renderTeams(){const elements=[$('teamsMirror')];elements.forEach(el=>{el.replaceChildren();if(!s.teams.length){el.textContent='No assigned team yet. Your captain or manager can ask an administrator to assign you.';return;}s.teams.forEach(t=>{const b=document.createElement('button');b.type='button';b.className='eh-pick'+(s.team?.id===t.id?' active':'');b.textContent=`${t.name} · ${t.game_name}`;b.addEventListener('click',async()=>{try{await selectTeam(t);go('teams');notify(`Viewing ${t.name}`);}catch(e){notify(e.message,true);}});if(admin()&&s.teams.length>1){const row=document.createElement('div');row.className='eh-reorder';row.append(b);[['▲','Move up',-1],['▼','Move down',1]].forEach(([ic,label,d])=>{const m=document.createElement('button');m.type='button';m.className='eh-btn';m.textContent=ic;m.setAttribute('aria-label',label+' '+t.name);m.addEventListener('click',()=>moveTeam(t.id,d));row.append(m);});el.append(row);}else el.append(b);});});}
-async function refresh(){const me=await api('/me');assignedRoles=me.roles||[];if(activeViewRole&&!assignedRoles.some(m=>m.role===activeViewRole))activeViewRole='';renderRoleSelector();const [games,teams]=await Promise.all([api('/games'),api('/teams')]);me.roles=activeViewRole?assignedRoles.filter(m=>m.role===activeViewRole):assignedRoles;s.me=me;s.games=games;s.teams=teams;$('loginPage').classList.add('hidden');$('dashboardShell').classList.remove('hidden');$('guest').classList.add('hidden');$('signed').classList.remove('hidden');$('logout').classList.remove('hidden');$('authStatus').textContent='Connected';$('welcome').textContent=me.user.name.split(' ')[0];$('sidebarName').textContent=me.user.name;$('sidebarRole').textContent=(activeViewRole?'Viewing as ':'')+(me.roles.map(m=>roleLabel(m.role)).filter((v,i,a)=>a.indexOf(v)===i).join(' · ')||'Member');$('sidebarAvatar').textContent=me.user.name.split(' ').slice(0,2).map(x=>x[0]).join('').toUpperCase();$('roles').textContent=me.roles.map(m=>roleLabel(m.role)+(m.game_name?` · ${m.game_name}`:'')).join(' · ');renderTeams();$('gameForm').classList.toggle('hidden',!admin());const managed=games.filter(g=>managesGame(g.id));$('teamForm').classList.toggle('hidden',!managed.length);const organizationCard=$('teamForm').closest('article');const canManageOrganization=admin()||managed.length>0;organizationCard.classList.toggle('hidden',!canManageOrganization);organizationCard.parentElement.style.gridTemplateColumns=canManageOrganization?'':'minmax(0,1fr)';listOptions($('createTeamGame'),managed,g=>g.name);listOptions($('inviteGame'),games,g=>g.name);listOptions($('inviteTeam'),teams,t=>t.name);$('staff').classList.toggle('hidden',!admin()&&!teams.some(managesTeam));document.querySelector('[data-screen="invitations"]').classList.toggle('hidden',!admin()&&!teams.some(managesTeam));$('membersNav').classList.toggle('hidden',!admin());$('matchSyncNav').classList.toggle('hidden',!canViewMatchSync());$('waitingForTeam').classList.toggle('hidden',!me.roles.some(m=>m.role==='player'&&!m.game_id&&!m.team_id));if(admin())await loadMemberDirectory();const current=teams.find(t=>t.id===s.team?.id)||teams[0];if(current)await selectTeam(current);else clearTeam();go((location.hash||'#dashboard').slice(1));renderDashboard();fillProfile();notify('Connected securely through Clerk.');}
-function clearTeam(){s.team=null;s.teamMembers=[];s.events=[];s.teamReports=[];s.teamAvailability=[];renderDashboard();$('selected').classList.add('hidden');['events','reports','members','concerns'].forEach(id=>$(id).textContent='Select a team to view this section.');['eventForm','reportForm','review'].forEach(id=>$(id).classList.add('hidden'));document.querySelectorAll('.eh-selected').forEach(x=>x.textContent=selectedLabel());}
+async function refresh(){s.scheduleRequest=(s.scheduleRequest||0)+1;s.scheduleAllEvents=null;s.scheduleLoading=false;const me=await api('/me');assignedRoles=me.roles||[];if(activeViewRole&&!assignedRoles.some(m=>m.role===activeViewRole))activeViewRole='';renderRoleSelector();const [games,teams]=await Promise.all([api('/games'),api('/teams')]);me.roles=activeViewRole?assignedRoles.filter(m=>m.role===activeViewRole):assignedRoles;s.me=me;s.games=games;s.teams=teams;$('loginPage').classList.add('hidden');$('dashboardShell').classList.remove('hidden');$('guest').classList.add('hidden');$('signed').classList.remove('hidden');$('logout').classList.remove('hidden');$('authStatus').textContent='Connected';updateDashboardGreeting();$('sidebarName').textContent=me.user.name;$('sidebarRole').textContent=(activeViewRole?'Viewing as ':'')+(me.roles.map(m=>roleLabel(m.role)).filter((v,i,a)=>a.indexOf(v)===i).join(' · ')||'Member');$('sidebarAvatar').textContent=me.user.name.split(' ').slice(0,2).map(x=>x[0]).join('').toUpperCase();$('roles').textContent=me.roles.map(m=>roleLabel(m.role)+(m.game_name?` · ${m.game_name}`:'')).join(' · ');renderTeams();$('gameForm').classList.toggle('hidden',!admin());const managed=games.filter(g=>managesGame(g.id));$('teamForm').classList.toggle('hidden',!managed.length);const organizationCard=$('teamForm').closest('article');const canManageOrganization=admin()||managed.length>0;organizationCard.classList.toggle('hidden',!canManageOrganization);organizationCard.parentElement.style.gridTemplateColumns=canManageOrganization?'':'minmax(0,1fr)';listOptions($('createTeamGame'),managed,g=>g.name);listOptions($('inviteGame'),games,g=>g.name);listOptions($('inviteTeam'),teams,t=>t.name);$('staff').classList.toggle('hidden',!admin()&&!teams.some(managesTeam));document.querySelector('[data-screen="invitations"]').classList.toggle('hidden',!admin()&&!teams.some(managesTeam));$('membersNav').classList.toggle('hidden',!admin());$('matchSyncNav').classList.toggle('hidden',!canViewMatchSync());$('waitingForTeam').classList.toggle('hidden',!me.roles.some(m=>m.role==='player'&&!m.game_id&&!m.team_id));if(admin())await loadMemberDirectory();const current=teams.find(t=>t.id===s.team?.id)||teams[0];if(current)await selectTeam(current);else clearTeam();go((location.hash||'#dashboard').slice(1));renderDashboard();fillProfile();notify('Connected securely through Clerk.');}
+function clearTeam(){s.scheduleRequest=(s.scheduleRequest||0)+1;s.scheduleAllEvents=null;s.scheduleLoading=false;s.team=null;s.teamMembers=[];s.events=[];s.teamReports=[];s.teamAvailability=[];renderDashboard();$('selected').classList.add('hidden');['events','reports','members','concerns'].forEach(id=>$(id).textContent='Select a team to view this section.');['eventForm','reportForm','review'].forEach(id=>$(id).classList.add('hidden'));document.querySelectorAll('.eh-selected').forEach(x=>x.textContent=selectedLabel());}
 async function selectTeam(t){const [info,events,reports,availability]=await Promise.all([api(`/teams/${t.id}`),api(`/teams/${t.id}/events`),api(`/teams/${t.id}/reports`),api(`/teams/${t.id}/availability`)]);s.team=t;$('selected').classList.remove('hidden');$('teamTitle').textContent=`${t.name} · ${t.game_name}`;$('teamDesc').textContent=info.team.description||'No description';s.events=events;s.teamMembers=info.members||[];s.teamReports=reports||[];s.teamAvailability=Array.isArray(availability)?availability:(availability.members||availability.availability||[]);renderSchedule();renderRoster();renderDashboard();$('reports').innerHTML=reports.map(r=>`<div class="eh-item"><strong>${escapeHtml(r.title)}</strong><div class="eh-muted">${escapeHtml(r.type)} · ${escapeHtml(r.author||'')}</div><div class="eh-rich-notes">${formatNotes(r.content)}</div>${managesTeam(t)?`<button type="button" class="eh-btn tiny" data-edit-report="${escapeHtml(r.id)}">Edit report</button>`:''}</div>`).join('')||'No reports published.';$('eventForm').classList.toggle('hidden',!managesTeam(t));$('reportForm').classList.toggle('hidden',!managesTeam(t));$('review').classList.toggle('hidden',!managesGame(t.game_id));if(managesGame(t.game_id)){const concerns=await api(`/teams/${t.id}/concerns`);$('concerns').innerHTML=concerns.map(c=>`<div class="eh-item"><strong>${escapeHtml(c.status||'Open')}</strong> · ${escapeHtml(c.author)}<p>${escapeHtml(c.details)}</p></div>`).join('')||'No private concerns.';}const mine=Array.isArray(availability)?availability.find(x=>x.user_id===s.me.user.id)?.slots||[]:availability.slots||[];s.slots=new Set(mine.map(Number));s.avEditing=false;updateGrid();renderTeamAvailability();renderTeams();document.querySelectorAll('.eh-selected').forEach(x=>x.textContent=selectedLabel());}
 function form(id,fn){$(id).addEventListener('submit',async e=>{e.preventDefault();const element=e.currentTarget;const values=Object.fromEntries(new FormData(element).entries());try{await fn(values);element.reset();}catch(err){notify(err.message,true);}});}
 form('gameForm',async b=>{await api('/games','POST',{name:b.name});await refresh();notify('Game created');});
@@ -83,14 +83,14 @@ let directory=[];
 async function loadMemberDirectory(){
   directory=await api('/members');
   const previous=$('memberUser').value;
-  listOptions($('memberUser'),directory,u=>u.name);
+  listOptions($('memberUser'),directory,u=>u.name+(u.username?' · @'+u.username:''));
   if(directory.some(u=>u.id===previous))$('memberUser').value=previous;
   $('memberDirectory').replaceChildren();
   directory.forEach(u=>{
     const row=document.createElement('div');row.className='eh-item';
-    const name=document.createElement('strong');name.textContent=u.name;
+    const name=document.createElement('div');name.className='eh-member-name';const full=document.createElement('strong');full.textContent=u.name;const username=document.createElement('span');username.className='eh-inline-username';username.textContent=u.username?'@'+u.username:'Username not set';name.append(full,username);
     const detail=document.createElement('div');detail.className='eh-muted';
-    detail.textContent=u.roles.map(m=>m.role.replaceAll('_',' ')+(m.team_name?' · '+m.team_name:m.game_name?' · '+m.game_name:m.role==='player'?' · Unassigned':'')).join(' / ')||'No assignment';
+    detail.textContent=u.roles.map(m=>roleLabel(m.role)+(m.team_name?' · '+m.team_name:m.game_name?' · '+m.game_name:m.role==='player'?' · Unassigned':'')).join(' / ')||'No assignment';
     const button=document.createElement('button');button.type='button';button.className='eh-btn tiny';button.textContent='Manage';button.onclick=()=>{$('memberUser').value=u.id;chooseMember();$('memberUser').focus();};
     row.append(name,detail,button);$('memberDirectory').append(row);
   });
@@ -100,7 +100,7 @@ async function loadMemberDirectory(){
 }
 function chooseMember(){
   const member=directory.find(u=>u.id===$('memberUser').value);
-  $('memberAssignment').innerHTML=(member?.roles||[]).map(m=>`<option value="${m.membership_id}">${escapeHtml(m.role.replaceAll('_',' ')+(m.team_name?' · '+m.team_name:m.game_name?' · '+m.game_name:m.role==='player'?' · Unassigned':''))}</option>`).join('')+'<option value="">Add another assignment</option>';
+  $('memberAssignment').innerHTML=(member?.roles||[]).map(m=>`<option value="${m.membership_id}">${escapeHtml(roleLabel(m.role)+(m.team_name?' · '+m.team_name:m.game_name?' · '+m.game_name:m.role==='player'?' · Unassigned':''))}</option>`).join('')+'<option value="">Add another assignment</option>';
   chooseAssignment();
 }
 function chooseAssignment(){
@@ -169,20 +169,21 @@ function unmountClerk(){
   if(signInMounted){window.Clerk.unmountSignIn($('clerk-sign-in'));signInMounted=false;}
   if(signUpMounted){window.Clerk.unmountSignUp($('clerk-sign-up'));signUpMounted=false;}
 }
+function activeClerkSession(){return !!window.Clerk?.user&&window.Clerk?.session?.status==='active';}
+function currentAuthMode(){return new URL(location.href).searchParams.get('auth')==='signup'?'signup':'signin';}
 function mountClerk(){
-  if(!s.clerkReady||window.Clerk.user)return;
-  const returnUrl=authReturnUrl();
-  const options={...routes.clerkOptions(returnUrl,pendingInvite),routing:'virtual',forceRedirectUrl:returnUrl,fallbackRedirectUrl:returnUrl,appearance:{elements:{rootBox:{width:'100%',maxWidth:'100%'},cardBox:{width:'100%',maxWidth:'100%'},card:{width:'100%',maxWidth:'100%'},formFieldInput:{fontSize:'16px'}}}};
-  if(!signInMounted){
-    try{window.Clerk.mountSignIn($('clerk-sign-in'),{...options,withSignUp:false});signInMounted=true;}
-    catch(e){$('signInLoading').textContent='Sign-in could not load: '+e.message;}
-  }
-  if(!signUpMounted){
-    try{window.Clerk.mountSignUp($('clerk-sign-up'),options);signUpMounted=true;}
-    catch(e){$('signUpLoading').textContent='Sign-up could not load: '+e.message;}
-  }
-  if(signInMounted)$('signInLoading').textContent='';
-  if(signUpMounted)$('signUpLoading').textContent='';
+ if(!s.clerkReady||activeClerkSession())return;
+ const mode=currentAuthMode(),signup=mode==='signup',returnUrl=authReturnUrl();
+ $('authCard').classList.toggle('hidden',signup);$('signUpCard').classList.toggle('hidden',!signup);
+ $('authSignInTab').setAttribute('aria-pressed',String(!signup));$('authSignUpTab').setAttribute('aria-pressed',String(signup));
+ if(signup&&signInMounted){window.Clerk.unmountSignIn($('clerk-sign-in'));signInMounted=false;}
+ if(!signup&&signUpMounted){window.Clerk.unmountSignUp($('clerk-sign-up'));signUpMounted=false;}
+ const options={...routes.clerkOptions(returnUrl,pendingInvite),routing:'hash',forceRedirectUrl:returnUrl,fallbackRedirectUrl:returnUrl,appearance:{elements:{rootBox:{width:'100%',maxWidth:'100%'},cardBox:{width:'100%',maxWidth:'100%'},card:{width:'100%',maxWidth:'100%'},formFieldInput:{fontSize:'16px'}}}};
+ try{
+  if(signup&&!signUpMounted){window.Clerk.mountSignUp($('clerk-sign-up'),options);signUpMounted=true;}
+  if(!signup&&!signInMounted){window.Clerk.mountSignIn($('clerk-sign-in'),{...options,withSignUp:true});signInMounted=true;}
+  $(signup?'signUpLoading':'signInLoading').textContent='';
+ }catch(error){$(signup?'signUpLoading':'signInLoading').textContent='Unable to load authentication: '+error.message;}
 }
 function showGuest(msg){s.me=null;activeViewRole='';assignedRoles=[];renderRoleSelector();setAccountMenu(false);$('loginPage').classList.remove('hidden');$('dashboardShell').classList.add('hidden');$('guest').classList.remove('hidden');$('signed').classList.add('hidden');$('logout').classList.add('hidden');$('authStatus').textContent='Sign in required';$('sidebarName').textContent='Not signed in';$('sidebarRole').textContent='Clerk authentication';$('guestNotice').textContent=msg||'';$('accountRecovery').classList.toggle('hidden',!window.Clerk?.user||!msg);$('accountRecoveryStatus').textContent=msg||'';mountClerk();}
 function resetInvite(){pendingInvite='';inviteDetails=null;try{sessionStorage.removeItem(pendingKey);}catch{}const url=new URL(location.href);url.searchParams.delete('invite');history.replaceState(null,'',url.href);$('invitationCard').classList.add('hidden');}
@@ -197,13 +198,14 @@ async function showInvitation(){
   }catch(e){$('invitationStatus').textContent=e.message;}
 }
 function chooseAuth(mode){
-  if(window.Clerk?.user)return;
-  $('authCard').classList.remove('hidden');$('signUpCard').classList.remove('hidden');$('signUpCard').classList.remove('hidden');
-  mountClerk();
-  const card=$(mode==='signup'?'signUpCard':'authCard');
-  card.scrollIntoView({behavior:'smooth',block:'center'});
-  const field=card.querySelector('input');if(field)field.focus();
+ if(activeClerkSession())return;
+ const nextMode=mode==='signup'?'signup':'signin';
+ if(nextMode!==currentAuthMode()){
+  unmountClerk();const url=new URL(location.href);url.searchParams.set('auth',nextMode);url.hash='';history.replaceState(null,'',url.href);
+ }
+ mountClerk();
 }
+$('authSignInTab').onclick=()=>chooseAuth('signin');$('authSignUpTab').onclick=()=>chooseAuth('signup');
 $('inviteSignIn').onclick=()=>chooseAuth('signin');
 $('inviteSignUp').onclick=()=>chooseAuth('signup');
 $('retryWorkspace').onclick=()=>{void renderAuth().catch(e=>showGuest(e.message));};
@@ -233,7 +235,7 @@ async function renderAuth(){
   if(s.rendering){s.authQueued=true;return;}s.rendering=true;
   try{
     $('enrollmentCard').classList.add('hidden');
-    if(!window.Clerk.user){
+    if(!activeClerkSession()){
       $('authCard').classList.remove('hidden');$('signUpCard').classList.remove('hidden');$('invitationCard').classList.toggle('hidden',!pendingInvite);$('inviteAuthButtons').classList.remove('hidden');$('acceptInvite').classList.add('hidden');$('invitationSwitch').classList.add('hidden');$('invitationAccount').textContent='';
       $('invitationStatus').textContent='You have been invited to EsportsHub. Create an account or sign in, then review and accept your invitation.';showGuest();return;
     }
@@ -279,7 +281,7 @@ $('profileForm').addEventListener('submit',async e=>{
   try{await saveAppProfile();}catch(err){problems.push(err.message);}
   try{await u.reload();}catch{}
   const full=[u.firstName,u.lastName].filter(Boolean).join(' ')||'Member';
-  $('sidebarName').textContent=full;$('welcome').textContent=full.split(' ')[0];
+  $('sidebarName').textContent=full;if(s.me)s.me.user.name=full;updateDashboardGreeting();
   showAvatars();
   status.textContent=problems.length?'Some changes did not save: '+problems.join(' · '):'Profile saved.';
   btn.disabled=false;
@@ -327,7 +329,7 @@ async function fillProfile(){
   $('pfGames').innerHTML=games.length?games.map(g=>`<label>${escapeHtml(g.name)}<input data-game="${escapeHtml(g.id)}" maxlength="64" placeholder="Username in ${escapeHtml(g.name)}"/></label>`).join(''):'No games available yet.';
   let prof={};
   try{prof=await api('/profile/'+encodeURIComponent(s.me.user.id));}catch{}
-  $('pfDiscord').value=prof.discord_username||'';$('pfMain').value=prof.main_game_id||'';$('pfUser').value=prof.username||'';
+  $('pfDashboardDisplay').value=s.me.user.dashboard_display||'name';$('pfDiscord').value=prof.discord_username||'';$('pfMain').value=prof.main_game_id||'';$('pfUser').value=prof.username||'';
   (prof.game_usernames||[]).forEach(x=>{const i=$('pfGames').querySelector(`[data-game="${CSS.escape(String(x.game_id))}"]`);if(i)i.value=x.username;});
   const b=prof.banner||'preset:purple';
   if(b.startsWith('https://')){$('pfBanner').value='preset:purple';}else if(b==='upload')$('pfBanner').value='upload';else $('pfBanner').value=BANNERS[b.slice(7)]?b:'preset:purple';
@@ -335,8 +337,9 @@ async function fillProfile(){
 }
 async function saveAppProfile(){
   const game_usernames={};$('pfGames').querySelectorAll('input[data-game]').forEach(i=>{const v=i.value.trim();if(v)game_usernames[i.dataset.game]=v;});
-  try{await api('/me/profile','PUT',{discord_username:$('pfDiscord').value.trim(),username:$('pfUser').value.trim(),main_game_id:$('pfMain').value||null,banner:bannerValue()||'preset:purple',game_usernames});}
+  try{await api('/me/profile','PUT',{dashboard_display:$('pfDashboardDisplay').value,discord_username:$('pfDiscord').value.trim(),username:$('pfUser').value.trim(),main_game_id:$('pfMain').value||null,banner:bannerValue()||'preset:purple',game_usernames});}
   catch(e){throw Error('Game profile: '+e.message);}
+  if(s.me){s.me.user.username=$('pfUser').value.trim();s.me.user.dashboard_display=$('pfDashboardDisplay').value;updateDashboardGreeting();if(s.team)await selectTeam(s.team);if(admin())await loadMemberDirectory();}
 
 }
 // ---- View another member's profile (Discord-style card) ----
@@ -394,11 +397,13 @@ const schType=t=>String(t||'event').replace(/[^a-z]/g,'')||'event';
 function schCard(e){
   const c=schEl('div','eh-item sch-card sch-'+schType(e.type)),top=schEl('div','sch-top');
   top.append(schEl('span','sch-time',schTime(e.d)),schEl('span','sch-type',e.type||'event'));
+  if(e._team)top.append(schEl('span','eh-schedule-team',`${e._team.name} · ${e._team.game_name}`));
   c.append(top,schEl('strong','',e.title));
   if(e.opponent)c.append(schEl('div','eh-muted','vs '+e.opponent));
   if(e.notes)c.append(schEl('p','',e.notes));
   appendEventResult(c,e);
-  if(s.team&&managesTeam(s.team)){const edit=schEl('button','eh-btn tiny','Edit event');edit.type='button';edit.onclick=()=>openTeamEditor('events',e);c.append(edit);const remove=schEl('button','eh-btn tiny eh-delete-event','Delete event');remove.type='button';remove.onclick=()=>deleteTeamEvent(e,remove);c.append(remove);}
+  if(e._team){const open=schEl('button','eh-btn tiny','Open team schedule');open.type='button';open.onclick=async()=>{open.disabled=true;try{s.scheduleScope='';await selectTeam(e._team);go('schedule');}catch(error){notify(error.message,true);}finally{open.disabled=false;}};c.append(open);}
+  if(!e._team&&s.team&&managesTeam(s.team)){const edit=schEl('button','eh-btn tiny','Edit event');edit.type='button';edit.onclick=()=>openTeamEditor('events',e);c.append(edit);const remove=schEl('button','eh-btn tiny eh-delete-event','Delete event');remove.type='button';remove.onclick=()=>deleteTeamEvent(e,remove);c.append(remove);}
   return c;
 }
 function schList(box,evs){
@@ -427,7 +432,7 @@ function schCalendar(box,evs){
     const cell=schEl('button','sch-cell'+(d.getMonth()!==mo?' other':'')+(k===todayKey?' today':'')+(k===s.calSel?' sel':''));
     cell.type='button';cell.setAttribute('aria-label',d.toLocaleDateString(undefined,{dateStyle:'full'})+', '+list.length+' events');
     cell.append(schEl('span','sch-num',String(d.getDate())));
-    list.slice(0,3).forEach(e=>cell.append(schEl('span','sch-chip sch-'+schType(e.type),schTime(e.d)+' '+e.title)));
+    list.slice(0,3).forEach(e=>cell.append(schEl('span','sch-chip sch-'+schType(e.type),schTime(e.d)+' '+(e._team?e._team.name+' · ':'')+e.title)));
     if(list.length>3)cell.append(schEl('span','sch-more','+'+(list.length-3)+' more'));
     cell.onclick=()=>{s.calSel=k;const di=document.querySelector('#eventForm [name=date]');if(di)di.value=k;renderSchedule();};
     grid.append(cell);
@@ -442,12 +447,22 @@ function schCalendar(box,evs){
 function renderSchedule(){
   const box=$('events');box.replaceChildren();
   const bar=schEl('div','sch-bar');
+  const teamLabel=schEl('label','eh-schedule-filter','Team '),teamSelect=document.createElement('select');teamSelect.setAttribute('aria-label','Schedule team filter');
+  if((s.teams||[]).length>1){const all=document.createElement('option');all.value='all';all.textContent='All teams';teamSelect.append(all);}
+  for(const team of s.teams||[]){const option=document.createElement('option');option.value=team.id;option.textContent=`${team.name} · ${team.game_name}`;teamSelect.append(option);}
+  teamSelect.value=s.scheduleScope==='all'&&s.teams.length>1?'all':s.team?.id||'';teamSelect.disabled=!s.teams.length;
+  teamSelect.onchange=async()=>{teamSelect.disabled=true;try{if(teamSelect.value==='all'){s.scheduleScope='all';s.scheduleAllEvents=null;await loadAllScheduleEvents();}else{const team=s.teams.find(t=>t.id===teamSelect.value);s.scheduleRequest=(s.scheduleRequest||0)+1;s.scheduleLoading=false;s.scheduleScope='';if(team)await selectTeam(team);}}catch(error){notify(error.message,true);renderSchedule();}finally{teamSelect.disabled=!s.teams.length;}};teamLabel.append(teamSelect);bar.append(teamLabel);
   [['list','List'],['calendar','Calendar']].forEach(([v,label])=>{
     const b=schEl('button','eh-btn',label);b.type='button';b.setAttribute('aria-pressed',String(s.schedView===v));
     b.onclick=()=>{s.schedView=v;try{localStorage.setItem('eh_sched_view',v);}catch{}renderSchedule();};bar.append(b);
   });
   box.append(bar);
-  const evs=(s.events||[]).map(e=>({...e,d:new Date(e.starts_at)})).filter(e=>!isNaN(e.d)).sort((a,b)=>a.d-b.d);
+  const all=s.scheduleScope==='all'&&(s.teams||[]).length>1;
+  $('eventForm').classList.toggle('hidden',all||!s.team||!managesTeam(s.team));
+  if(all&&!s.scheduleAllEvents&&!s.scheduleLoading){void loadAllScheduleEvents();return;}
+  if(all&&s.scheduleLoading){box.append(schEl('p','eh-muted','Loading schedules for all teams…'));return;}
+  if(all){box.append(schEl('p','eh-muted','Showing all accessible teams. Open a team schedule to create or edit its events.'));if(s.scheduleErrors?.length){const warning=schEl('p','eh-alert',`Could not load: ${s.scheduleErrors.join(', ')}. The combined schedule is incomplete.`),retry=schEl('button','eh-btn tiny','Retry');retry.type='button';retry.onclick=()=>{s.scheduleAllEvents=null;void loadAllScheduleEvents();};box.append(warning,retry);}}
+  const evs=(all?s.scheduleAllEvents||[]:s.events||[]).map(e=>({...e,d:new Date(e.starts_at)})).filter(e=>!isNaN(e.d)).sort((a,b)=>a.d-b.d);
   if(s.schedView==='calendar')schCalendar(box,evs);else schList(box,evs);
 }
 
@@ -490,7 +505,7 @@ function renderRoster(){
  const others=members.filter(m=>m.role==='player');
  const subs=others.filter(m=>['sub','substitute'].includes(String(m.roster_status||m.lineup_status||m.position||'').toLowerCase()));
  const starters=others.filter(m=>!subs.includes(m));
- const group=(title,items)=>`<section class="eh-roster-group"><h3>${title} <span class="eh-muted">(${items.length})</span></h3>`+(items.map(m=>`<div class="eh-roster-member"><div class="eh-roster-identity">${rosterAvatar(m)}<div><strong>${escapeHtml(m.display_name||m.name)}</strong><div class="eh-muted">${escapeHtml(roleLabel(m.role||'player'))}</div></div></div><div class="eh-roster-actions">${profileButton(m)}${can&&m.role==='player'?`<select aria-label="Lineup status for ${escapeHtml(m.display_name)}" data-lineup-user="${escapeHtml(m.user_id||m.id)}"><option value="starter" ${!subs.includes(m)?'selected':''}>Starter</option><option value="sub" ${subs.includes(m)?'selected':''}>Substitute</option></select>`:''}</div></div>`).join('')||'<p class="eh-muted">No members in this section.</p>')+'</section>';
+ const group=(title,items)=>`<section class="eh-roster-group"><h3>${title} <span class="eh-muted">(${items.length})</span></h3>`+(items.map(m=>`<div class="eh-roster-member"><div class="eh-roster-identity">${rosterAvatar(m)}<div><div class="eh-member-name"><strong>${escapeHtml(m.display_name||m.name)}</strong><span class="eh-inline-username">${m.username?'@'+escapeHtml(m.username):'Username not set'}</span></div><div class="eh-muted">${escapeHtml(roleLabel(m.role||'player'))}</div></div></div><div class="eh-roster-actions">${profileButton(m)}${can&&m.role==='player'?`<select aria-label="Lineup status for ${escapeHtml(m.display_name)}" data-lineup-user="${escapeHtml(m.user_id||m.id)}"><option value="starter" ${!subs.includes(m)?'selected':''}>Starter</option><option value="sub" ${subs.includes(m)?'selected':''}>Substitute</option></select>`:''}</div></div>`).join('')||'<p class="eh-muted">No members in this section.</p>')+'</section>';
  target.innerHTML=group('Captain',captains)+group('Players · Starters',starters)+group('Substitutes',subs);loadRosterAvatars(target);
 }
 $('members').addEventListener('change',async e=>{
@@ -633,11 +648,11 @@ function appendEventResult(card,event){
  if(event.team_score!=null&&event.opponent_score!=null){
   const label=status==='final'?(event.team_score>event.opponent_score?'Win':event.team_score<event.opponent_score?'Loss':'Draw'):'Current Score';
   row.append(schEl('strong','',`${label}: ${event.team_score} – ${event.opponent_score}`));
-  row.append(schEl('span','eh-muted',`${s.team?.name||'Your team'} · ${event.opponent||'Opponent'}`));
+  row.append(schEl('span','eh-muted',`${event._team?.name||s.team?.name||'Your team'} · ${event.opponent||'Opponent'}`));
  }
  if(event.result_source)row.append(schEl('small','eh-muted',`${event.result_source==='necc_page'?'Synced from NECC':'Entered manually'} · ${fmt(event.result_updated_at)}`));
  if(event.necc_match_id&&/^[a-z0-9]{10,40}$/.test(event.necc_match_id)){const link=schEl('a','eh-result-link','View NECC match');link.href='https://necc.v1.leagueos.gg/league/matches/'+event.necc_match_id;link.target='_blank';link.rel='noopener noreferrer';row.append(link);}
- if(event.necc_match_id&&s.team&&(admin()||s.me?.roles.some(m=>m.role==='team_manager'&&m.team_id===s.team.id))){
+ if(!event._team&&event.necc_match_id&&s.team&&(admin()||s.me?.roles.some(m=>m.role==='team_manager'&&m.team_id===s.team.id))){
   const sync=schEl('button','eh-btn tiny','Sync NECC result'),status=schEl('span','eh-result-sync-message');status.setAttribute('role','status');sync.type='button';
   sync.onclick=async()=>{if(sync.disabled)return;const teamId=s.team.id;sync.disabled=true;sync.textContent='Reading NECC match…';status.textContent='Opening the match page and checking its scoreboard. This can take up to 45 seconds.';
    try{const result=await api(`/teams/${encodeURIComponent(teamId)}/events/${encodeURIComponent(event.id)}/result/sync`,'POST',{});if(result.pending){status.textContent=result.message||'No result published yet.';status.classList.remove('eh-result-sync-error');return;}status.textContent=result.status==='cancelled'?'Match cancelled.':`Result synced: ${result.teamScore} – ${result.opponentScore}.`;if(s.team?.id===teamId)await selectTeam(s.team);notify('NECC result synced.');}
@@ -645,7 +660,7 @@ function appendEventResult(card,event){
    finally{sync.disabled=false;sync.textContent='Sync NECC result';}
   };row.append(sync,status);
  }
- if(s.team&&managesTeam(s.team)){const button=schEl('button','eh-btn tiny',event.result_status?'Edit result':'Record result');button.type='button';button.onclick=()=>editEventResult(event);row.append(button);}
+ if(!event._team&&s.team&&managesTeam(s.team)){const button=schEl('button','eh-btn tiny',event.result_status?'Edit result':'Record result');button.type='button';button.onclick=()=>editEventResult(event);row.append(button);}
  card.append(row);
 }
 function editEventResult(event){
@@ -673,3 +688,13 @@ function renderMatchSyncPage(){
 
 $('dashboardTeamSelect').addEventListener('change',async e=>{const select=e.target,old=s.team?.id||'',team=(s.teams||[]).find(t=>t.id===select.value);if(!team)return;select.disabled=true;try{await selectTeam(team);go('dashboard');}catch(error){select.value=old;notify(error.message,true);}finally{select.disabled=!(s.teams||[]).length;}});
 document.addEventListener('click',e=>{const button=e.target.closest('[data-dashboard-go]');if(button)go(button.dataset.dashboardGo);});
+
+async function loadAllScheduleEvents(){
+ if(s.scheduleLoading)return;const request=(s.scheduleRequest||0)+1;s.scheduleRequest=request;s.scheduleLoading=true;s.scheduleErrors=[];renderSchedule();
+ const teams=[...(s.teams||[])],events=[],errors=[];let next=0;
+ await Promise.all(Array.from({length:Math.min(4,teams.length)},async()=>{while(next<teams.length){const team=teams[next++];try{const rows=await api(`/teams/${encodeURIComponent(team.id)}/events`);if(!Array.isArray(rows))throw Error('Invalid event list');events.push(...rows.map(e=>({...e,_team:team})));}catch(error){errors.push(`${team.name}: ${error.message}`);}}}));
+ if(s.scheduleRequest!==request)return;s.scheduleAllEvents=events;s.scheduleErrors=errors;s.scheduleLoading=false;renderSchedule();
+}
+
+function dashboardGreeting(user){return user?.dashboard_display==='username'&&user.username?user.username:user?.name||'member';}
+function updateDashboardGreeting(){const el=$('welcome');if(el)el.textContent=dashboardGreeting(s.me?.user);}
