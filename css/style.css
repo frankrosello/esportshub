@@ -493,3 +493,31 @@ a:focus-visible,button:focus-visible,input:focus-visible,textarea:focus-visible,
 .sidebar .brand .eh-wordmark{width:170px;max-width:100%}.eh-login-brand .eh-wordmark{width:180px;max-width:50vw}@media(max-width:900px){.sidebar .brand .eh-wordmark{width:165px;max-width:100%}}
 
 .sidebar .brand{justify-content:center}.sidebar .brand .eh-wordmark{margin-inline:auto}
+
+/* Sign-in shares the solid workspace palette and panel language. */
+#loginPage .eh-login-header{height:76px;padding:0 max(24px,calc((100vw - 1180px)/2));background:var(--surface)}
+#loginPage .eh-login-main{width:min(1180px,100%);max-width:1180px;grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);align-items:start;gap:76px;padding:64px 24px;margin:auto}
+#loginPage .eh-login-copy h1{font-size:clamp(36px,4vw,52px);line-height:1.12;letter-spacing:-1.5px;margin:12px 0 18px}
+#loginPage .eh-login-intro{font-size:17px;line-height:1.7;margin:0 0 30px;color:var(--muted)}
+#loginPage .eh-kicker{font-size:10px;letter-spacing:.14em}
+#loginPage .eh-login-features{display:grid;gap:22px;max-width:500px}
+#loginPage .eh-login-features>div{display:flex;gap:14px;align-items:flex-start}
+#loginPage .eh-login-feature-icon{width:33px;height:33px;flex:0 0 33px;display:grid;place-items:center;border:1px solid var(--border);border-radius:8px;background:var(--accent-bg);color:var(--accent);font-size:10px;font-weight:700;margin-top:2px}
+#loginPage .eh-login-features h2{font-size:14px;font-weight:700;line-height:1.5;margin:0 0 5px;letter-spacing:0}
+#loginPage .eh-login-features p{font-size:12px;line-height:1.75;margin:0;color:var(--muted);max-width:440px}
+#loginPage .eh-login-caption{font-size:11px;border-top:1px solid var(--border);padding-top:18px;margin-top:28px;max-width:500px;display:block}
+#loginPage .eh-login-form{padding-top:5px;width:100%;max-width:440px;justify-self:end}
+#loginPage .eh-login-form .eh-panel{background:var(--surface);padding:26px;border:1px solid var(--border);border-top:3px solid var(--accent);border-radius:14px;box-shadow:none;margin-top:0}
+#loginPage .eh-login-form .eh-panel h2{font-size:21px;line-height:1.4;letter-spacing:-.4px;margin:9px 0 8px}
+#loginPage .eh-login-form .eh-panel>p{font-size:12px;line-height:1.7;margin-bottom:20px}
+#loginPage .eh-auth-tabs{display:flex;gap:4px;border:1px solid var(--border);background:var(--surface-alt);border-radius:10px;padding:4px;margin:0 0 16px}
+#loginPage .eh-auth-tabs .eh-btn{flex:1;border:0;border-radius:7px;font-size:12px;padding:11px 8px;background:transparent;color:var(--muted)}
+#loginPage .eh-auth-tabs .eh-btn[aria-pressed=true]{background:var(--accent-bg);color:var(--ink)}
+#loginPage .eh-login-form .eh-grid.two{grid-template-columns:minmax(0,1fr);gap:0}
+#loginPage .eh-login-form .eh-grid.two>p{font-size:11px;line-height:1.8;margin:18px 4px 0!important;color:var(--muted)}
+#loginPage .eh-login-secure{font-size:11px;display:flex;align-items:center;gap:8px}#loginPage .eh-login-secure>span{color:var(--accent);font-size:8px}
+#loginPage .eh-login-footer{display:flex;justify-content:space-between;gap:16px;padding:20px max(24px,calc((100vw - 1132px)/2));font-size:11px}
+@media(max-width:900px){#loginPage .eh-login-main{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:30px;padding:42px 24px}#loginPage .eh-login-copy h1{font-size:38px}#loginPage .eh-login-form .eh-panel{padding:20px}}
+@media(max-width:650px){#loginPage .eh-login-main{grid-template-columns:minmax(0,1fr);gap:32px;padding:30px 18px;max-width:540px}#loginPage .eh-login-form{grid-row:2;justify-self:stretch;max-width:none}#loginPage .eh-login-copy h1{font-size:36px}#loginPage .eh-login-intro{font-size:14px;margin-bottom:22px}#loginPage .eh-login-features{grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 14px}#loginPage .eh-login-features>div{display:block}#loginPage .eh-login-feature-icon{margin:0 0 8px}#loginPage .eh-login-features p{font-size:11px}#loginPage .eh-login-caption{display:none}#loginPage .eh-login-header{height:68px;padding:0 20px}#loginPage .eh-login-footer{padding:18px;flex-direction:column;gap:6px;text-align:center}#loginPage .eh-login-secure{display:none}}
+@media(max-width:650px){#loginPage .eh-login-main{display:flex;flex-direction:column;gap:12px}#loginPage .eh-login-copy{display:contents}#loginPage .eh-login-copy>.eh-kicker{order:0}#loginPage .eh-login-copy>h1{order:1;margin:0}#loginPage .eh-login-intro{order:2;margin:0 0 8px}#loginPage .eh-login-form{order:3;margin:8px 0 20px}#loginPage .eh-login-features{order:4;width:100%}}
+@media(max-width:650px){#loginPage .eh-login-form .eh-panel{padding:18px!important}#loginPage .eh-login-form .eh-panel>h2{display:block;font-size:20px}}
