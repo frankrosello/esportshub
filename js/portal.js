@@ -51,10 +51,10 @@ async function api(path,method='GET',body){const token=await window.Clerk?.sessi
 function listOptions(el,items,label){el.innerHTML=items.map(t=>`<option value="${escapeHtml(t.id)}">${escapeHtml(label(t))}</option>`).join('');}
 function selectedLabel(){return s.team?`${s.team.game_name} / ${s.team.name}`:'Select a team under Teams first';}
 function go(page){const screens=['dashboard','teams','schedule','availability','reports','concerns','invitations','members','settings'];if(!screens.includes(page))page='dashboard';if(!s.me&&page!=='dashboard')page='dashboard';if(page==='members'&&!admin())page='dashboard';document.querySelectorAll('[data-panel]').forEach(x=>x.classList.toggle('hidden',x.dataset.panel!==page));document.querySelectorAll('[data-screen]').forEach(x=>x.classList.toggle('active',x.dataset.screen===page));$('breadcrumbCurrent').textContent=({dashboard:'Overview',teams:'Teams',schedule:'Schedule',availability:'Availability',reports:'Reports',concerns:'Player concerns',invitations:'Invitations',members:'Members',settings:'Settings'})[page];document.querySelectorAll('.eh-selected').forEach(x=>x.textContent=selectedLabel());const destination=new URL(routes.home());destination.search=new URL(location.href).search;destination.hash=page;history.replaceState(null,'',destination.href);setMobileNav(false);}
-function renderTeams(){const elements=[$('teams'),$('teamsMirror')];elements.forEach(el=>{el.replaceChildren();if(!s.teams.length){el.textContent='No assigned team yet. Your captain or manager can ask an administrator to assign you.';return;}s.teams.forEach(t=>{const b=document.createElement('button');b.type='button';b.className='eh-pick'+(s.team?.id===t.id?' active':'');b.textContent=`${t.name} · ${t.game_name}`;b.addEventListener('click',async()=>{try{await selectTeam(t);go('teams');notify(`Viewing ${t.name}`);}catch(e){notify(e.message,true);}});el.append(b);});});}
+function renderTeams(){const elements=[$('teams'),$('teamsMirror')];elements.forEach(el=>{el.replaceChildren();if(!s.teams.length){el.textContent='No assigned team yet. Your captain or manager can ask an administrator to assign you.';return;}s.teams.forEach(t=>{const b=document.createElement('button');b.type='button';b.className='eh-pick'+(s.team?.id===t.id?' active':'');b.textContent=`${t.name} · ${t.game_name}`;b.addEventListener('click',async()=>{try{await selectTeam(t);go('teams');notify(`Viewing ${t.name}`);}catch(e){notify(e.message,true);}});if(admin()&&s.teams.length>1){const row=document.createElement('div');row.className='eh-reorder';row.append(b);[['▲','Move up',-1],['▼','Move down',1]].forEach(([ic,label,d])=>{const m=document.createElement('button');m.type='button';m.className='eh-btn';m.textContent=ic;m.setAttribute('aria-label',label+' '+t.name);m.addEventListener('click',()=>moveTeam(t.id,d));row.append(m);});el.append(row);}else el.append(b);});});}
 async function refresh(){const [me,games,teams]=await Promise.all([api('/me'),api('/games'),api('/teams')]);s.me=me;s.games=games;s.teams=teams;$('loginPage').classList.add('hidden');$('dashboardShell').classList.remove('hidden');$('guest').classList.add('hidden');$('signed').classList.remove('hidden');$('logout').classList.remove('hidden');$('authStatus').textContent='Connected';$('welcome').textContent=me.user.name.split(' ')[0];$('sidebarName').textContent=me.user.name;$('sidebarRole').textContent=me.roles.map(m=>m.role.replace('_',' ')).join(' · ')||'Member';$('sidebarAvatar').textContent=me.user.name.split(' ').slice(0,2).map(x=>x[0]).join('').toUpperCase();$('roles').textContent=me.roles.map(m=>m.role.replace('_',' ')+(m.game_name?` · ${m.game_name}`:'')).join(' · ');$('statGames').textContent=games.length;$('statTeams').textContent=teams.length;$('statRole').textContent=admin()?'Admin':me.roles[0]?.role.replace('_',' ')||'Member';$('games').innerHTML=games.map(g=>`<div class="eh-item"><strong>${escapeHtml(g.name)}</strong></div>`).join('')||'No assigned games yet.';renderTeams();$('gameForm').classList.toggle('hidden',!admin());const managed=games.filter(g=>managesGame(g.id));$('teamForm').classList.toggle('hidden',!managed.length);listOptions($('createTeamGame'),managed,g=>g.name);listOptions($('inviteGame'),games,g=>g.name);listOptions($('inviteTeam'),teams,t=>t.name);$('staff').classList.toggle('hidden',!admin()&&!teams.some(managesTeam));document.querySelector('[data-screen="invitations"]').classList.toggle('hidden',!admin()&&!teams.some(managesTeam));$('membersNav').classList.toggle('hidden',!admin());$('waitingForTeam').classList.toggle('hidden',!me.roles.some(m=>m.role==='player'&&!m.game_id&&!m.team_id));if(admin())await loadMemberDirectory();const current=teams.find(t=>t.id===s.team?.id)||teams[0];if(current)await selectTeam(current);else clearTeam();go((location.hash||'#dashboard').slice(1));fillProfile();notify('Connected securely through Clerk.');}
 function clearTeam(){s.team=null;$('selected').classList.add('hidden');['events','reports','members','concerns'].forEach(id=>$(id).textContent='Select a team to view this section.');['eventForm','reportForm','review'].forEach(id=>$(id).classList.add('hidden'));document.querySelectorAll('.eh-selected').forEach(x=>x.textContent=selectedLabel());}
-async function selectTeam(t){const [info,events,reports,availability]=await Promise.all([api(`/teams/${t.id}`),api(`/teams/${t.id}/events`),api(`/teams/${t.id}/reports`),api(`/teams/${t.id}/availability`)]);s.team=t;$('selected').classList.remove('hidden');$('teamTitle').textContent=`${t.name} · ${t.game_name}`;$('teamDesc').textContent=info.team.description||'No description';$('members').innerHTML=info.members.map(m=>`<div class="eh-item"><strong>${escapeHtml(m.display_name)}</strong><span class="eh-muted"> · ${escapeHtml(m.role)}</span></div>`).join('')||'No registered members yet.';$('events').innerHTML=events.map(e=>`<div class="eh-item"><strong>${escapeHtml(e.title)}</strong><div class="eh-muted">${escapeHtml(e.type)} · ${escapeHtml(fmt(e.starts_at))}${e.opponent?' · vs '+escapeHtml(e.opponent):''}</div>${e.notes?`<p>${escapeHtml(e.notes)}</p>`:''}</div>`).join('')||'No events scheduled.';$('reports').innerHTML=reports.map(r=>`<div class="eh-item"><strong>${escapeHtml(r.title)}</strong><div class="eh-muted">${escapeHtml(r.type)} · ${escapeHtml(r.author||'')}</div><p>${escapeHtml(r.content)}</p></div>`).join('')||'No reports published.';$('eventForm').classList.toggle('hidden',!managesTeam(t));$('reportForm').classList.toggle('hidden',!managesTeam(t));$('review').classList.toggle('hidden',!managesGame(t.game_id));if(managesGame(t.game_id)){const concerns=await api(`/teams/${t.id}/concerns`);$('concerns').innerHTML=concerns.map(c=>`<div class="eh-item"><strong>${escapeHtml(c.status||'Open')}</strong> · ${escapeHtml(c.author)}<p>${escapeHtml(c.details)}</p></div>`).join('')||'No private concerns.';}const mine=Array.isArray(availability)?availability.find(x=>x.user_id===s.me.user.id)?.slots||[]:availability.slots||[];s.slots=new Set(mine.map(Number));updateGrid();renderTeams();document.querySelectorAll('.eh-selected').forEach(x=>x.textContent=selectedLabel());}
+async function selectTeam(t){const [info,events,reports,availability]=await Promise.all([api(`/teams/${t.id}`),api(`/teams/${t.id}/events`),api(`/teams/${t.id}/reports`),api(`/teams/${t.id}/availability`)]);s.team=t;$('selected').classList.remove('hidden');$('teamTitle').textContent=`${t.name} · ${t.game_name}`;$('teamDesc').textContent=info.team.description||'No description';$('members').innerHTML=info.members.map(m=>`<div class="eh-item"><strong>${escapeHtml(m.display_name)}</strong><span class="eh-muted"> · ${escapeHtml(m.role)}</span> <button type="button" class="eh-btn" data-profile="${escapeHtml(m.user_id||m.id||'')}" data-name="${escapeHtml(m.display_name)}" data-role="${escapeHtml(m.role)}" style="padding:4px 10px;min-height:30px;margin-left:8px">View profile</button></div>`).join('')||'No registered members yet.';$('events').innerHTML=events.map(e=>`<div class="eh-item"><strong>${escapeHtml(e.title)}</strong><div class="eh-muted">${escapeHtml(e.type)} · ${escapeHtml(fmt(e.starts_at))}${e.opponent?' · vs '+escapeHtml(e.opponent):''}</div>${e.notes?`<p>${escapeHtml(e.notes)}</p>`:''}</div>`).join('')||'No events scheduled.';$('reports').innerHTML=reports.map(r=>`<div class="eh-item"><strong>${escapeHtml(r.title)}</strong><div class="eh-muted">${escapeHtml(r.type)} · ${escapeHtml(r.author||'')}</div><p>${escapeHtml(r.content)}</p></div>`).join('')||'No reports published.';$('eventForm').classList.toggle('hidden',!managesTeam(t));$('reportForm').classList.toggle('hidden',!managesTeam(t));$('review').classList.toggle('hidden',!managesGame(t.game_id));if(managesGame(t.game_id)){const concerns=await api(`/teams/${t.id}/concerns`);$('concerns').innerHTML=concerns.map(c=>`<div class="eh-item"><strong>${escapeHtml(c.status||'Open')}</strong> · ${escapeHtml(c.author)}<p>${escapeHtml(c.details)}</p></div>`).join('')||'No private concerns.';}const mine=Array.isArray(availability)?availability.find(x=>x.user_id===s.me.user.id)?.slots||[]:availability.slots||[];s.slots=new Set(mine.map(Number));updateGrid();renderTeams();document.querySelectorAll('.eh-selected').forEach(x=>x.textContent=selectedLabel());}
 function form(id,fn){$(id).addEventListener('submit',async e=>{e.preventDefault();const element=e.currentTarget;const values=Object.fromEntries(new FormData(element).entries());try{await fn(values);element.reset();}catch(err){notify(err.message,true);}});}
 form('gameForm',async b=>{await api('/games','POST',{name:b.name});await refresh();notify('Game created');});
 form('teamForm',async b=>{await api('/teams','POST',b);await refresh();notify('Team created');});
@@ -229,7 +229,7 @@ async function renderAuth(){
 window.addEventListener('load',async()=>{try{if(!window.Clerk)throw Error('Clerk script did not load. Reload the page or check browser content blocking.');await window.Clerk.load({...routes.clerkOptions(authReturnUrl(),pendingInvite),signInForceRedirectUrl:authReturnUrl(),signInFallbackRedirectUrl:authReturnUrl(),signUpForceRedirectUrl:authReturnUrl(),signUpFallbackRedirectUrl:authReturnUrl(),...(window.__internal_ClerkUICtor?{ui:{ClerkUI:window.__internal_ClerkUICtor}}:{})});s.clerkReady=true;window.Clerk.addListener(()=>{void renderAuth().catch(e=>{showGuest(e.message);});});await renderAuth();}catch(e){$('signInLoading').textContent='Unable to load sign-in: '+e.message;$('signUpLoading').textContent='Unable to load sign-up: '+e.message;notify('Unable to start Clerk: '+e.message,true);showGuest(e.message);}});
 
 // Profile editing (name, username, picture) through Clerk.
-function fillProfile(){const u=window.Clerk?.user;if(!u)return;$('pfFirst').value=u.firstName||'';$('pfLast').value=u.lastName||'';$('pfUser').value=u.username||'';$('pfEmail').textContent=u.primaryEmailAddress?.emailAddress||'';}
+function fillProfileBasics(){const u=window.Clerk?.user;if(!u)return;$('pfFirst').value=u.firstName||'';$('pfLast').value=u.lastName||'';$('pfUser').value=u.username||'';$('pfEmail').textContent=u.primaryEmailAddress?.emailAddress||'';}
 $('profileForm').addEventListener('submit',async e=>{
   e.preventDefault();const u=window.Clerk?.user;if(!u)return;
   const btn=$('pfSave'),status=$('pfStatus');btn.disabled=true;status.textContent='Saving…';
@@ -237,6 +237,7 @@ $('profileForm').addEventListener('submit',async e=>{
     const body={firstName:$('pfFirst').value.trim(),lastName:$('pfLast').value.trim()};
     const un=$('pfUser').value.trim();if(un!==(u.username||''))body.username=un;
     await u.update(body);
+    await saveAppProfile();
     const f=$('pfAvatar').files[0];if(f){await u.setProfileImage({file:f});$('pfAvatar').value='';}
     const full=[u.firstName,u.lastName].filter(Boolean).join(' ')||u.username||'Member';
     $('sidebarName').textContent=full;$('welcome').textContent=full.split(' ')[0];
@@ -246,3 +247,58 @@ $('profileForm').addEventListener('submit',async e=>{
   finally{btn.disabled=false;}
 });
 $('pfManage').onclick=()=>window.Clerk?.openUserProfile?.();
+
+// ---- Extended profile: main game, per-game usernames, banner ----
+const BANNERS={purple:'linear-gradient(135deg,#6326a6,#bd94ed)',sunset:'linear-gradient(135deg,#f12711,#f5af19)',ocean:'linear-gradient(135deg,#1c92d2,#2af598)',forest:'linear-gradient(135deg,#134e5e,#71b280)',night:'linear-gradient(135deg,#0f2027,#2c5364)'};
+function applyBanner(el,value){
+  el.style.backgroundImage=BANNERS.purple;
+  if(typeof value==='string'&&value.startsWith('preset:')&&BANNERS[value.slice(7)])el.style.backgroundImage=BANNERS[value.slice(7)];
+  else if(typeof value==='string'&&/^https:\/\//.test(value))el.style.backgroundImage='url("'+value.replace(/["\\\s]/g,encodeURIComponent)+'")';
+}
+function bannerValue(){return $('pfBanner').value==='custom'?$('pfBannerUrl').value.trim():$('pfBanner').value;}
+function refreshBannerPreview(){$('pfBannerUrlWrap').classList.toggle('hidden',$('pfBanner').value!=='custom');applyBanner($('pfBannerPreview'),bannerValue());}
+$('pfBanner').addEventListener('change',refreshBannerPreview);$('pfBannerUrl').addEventListener('input',refreshBannerPreview);
+async function fillProfile(){
+  fillProfileBasics();
+  const games=s.games||[];
+  $('pfMain').innerHTML='<option value="">None</option>'+games.map(g=>`<option value="${escapeHtml(g.id)}">${escapeHtml(g.name)}</option>`).join('');
+  $('pfGames').innerHTML=games.length?games.map(g=>`<label>${escapeHtml(g.name)}<input data-game="${escapeHtml(g.id)}" maxlength="64" placeholder="Username in ${escapeHtml(g.name)}"/></label>`).join(''):'No games available yet.';
+  let prof={};
+  try{prof=await api('/profile/'+encodeURIComponent(s.me.user.id));}catch{}
+  $('pfMain').value=prof.main_game_id||'';
+  (prof.game_usernames||[]).forEach(x=>{const i=$('pfGames').querySelector(`[data-game="${CSS.escape(String(x.game_id))}"]`);if(i)i.value=x.username;});
+  const b=prof.banner||'preset:purple';
+  if(b.startsWith('https://')){$('pfBanner').value='custom';$('pfBannerUrl').value=b;}else $('pfBanner').value=BANNERS[b.slice(7)]?b:'preset:purple';
+  refreshBannerPreview();
+}
+async function saveAppProfile(){
+  const game_usernames={};$('pfGames').querySelectorAll('input[data-game]').forEach(i=>{const v=i.value.trim();if(v)game_usernames[i.dataset.game]=v;});
+  try{await api('/me/profile','PUT',{main_game_id:$('pfMain').value||null,banner:bannerValue()||'preset:purple',game_usernames});}
+  catch(e){throw Error('Name saved, but game profile could not be saved: '+e.message);}
+}
+// ---- View another member's profile ----
+const pd=$('profileDialog');$('pdClose').onclick=()=>pd.close();
+pd.addEventListener('click',e=>{if(e.target===pd)pd.close();});
+$('members').addEventListener('click',async e=>{
+  const btn=e.target.closest('[data-profile]');if(!btn)return;
+  const {profile:uid,name,role}=btn.dataset;
+  $('pdName').textContent=name;$('pdMeta').textContent=role.replace('_',' ');$('pdMain').textContent='';$('pdGames').textContent='';$('pdNote').textContent='Loading…';applyBanner($('pdBanner'),'preset:purple');
+  pd.showModal();
+  try{
+    const p=await api('/profile/'+encodeURIComponent(uid));
+    $('pdName').textContent=p.name||name;
+    $('pdMeta').textContent=[p.username?'@'+p.username:'',role.replace('_',' ')].filter(Boolean).join(' · ');
+    applyBanner($('pdBanner'),p.banner);
+    const main=(s.games.find(g=>g.id===p.main_game_id)||{}).name||p.main_game_name;
+    $('pdMain').textContent=main?'Main game: '+main:'';
+    const list=(p.game_usernames||[]).map(x=>`<div class="eh-ign"><span>${escapeHtml(x.game_name||(s.games.find(g=>g.id===x.game_id)||{}).name||'Game')}</span><strong>${escapeHtml(x.username)}</strong></div>`).join('');
+    $('pdGames').innerHTML=list||'<span class="eh-muted">No in-game usernames added.</span>';$('pdNote').textContent='';
+  }catch(err){$('pdNote').textContent='Could not load full profile: '+err.message;}
+});
+// ---- Admin: reorder teams ----
+async function moveTeam(id,d){
+  const i=s.teams.findIndex(t=>t.id===id),j=i+d;if(i<0||j<0||j>=s.teams.length)return;
+  const prev=[...s.teams];[s.teams[i],s.teams[j]]=[s.teams[j],s.teams[i]];renderTeams();
+  try{await api('/teams/order','PUT',{ids:s.teams.map(t=>t.id)});notify('Team order saved.');}
+  catch(e){s.teams=prev;renderTeams();notify('Could not save team order: '+e.message,true);}
+}
