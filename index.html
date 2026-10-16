@@ -1,350 +1,76 @@
-import { createClient } from '@libsql/client/web';
-import { createClerkClient } from '@clerk/backend';
+<!DOCTYPE html>
 
-const uuid = () => crypto.randomUUID();
-const j = (data, status=200) => Response.json(data,{status});
-function fail(status,message){throw Object.assign(new Error(message),{status});}
-const clean=(x,n=200)=>String(x??'').trim().slice(0,n);
-function required(x,n=200){const v=clean(x,n);if(!v)fail(400,'Missing required field');return v;}
-async function body(req){if(!(req.headers.get('content-type')||'').includes('application/json'))fail(415,'Expected JSON');let v;try{v=await req.json();}catch{fail(400,'Invalid JSON');}if(!v||Array.isArray(v)||typeof v!=='object')fail(400,'Invalid JSON');return v;}
-const q=(db,sql,args=[])=>db.execute({sql,args});
-const one=async(db,sql,args=[]) => (await q(db,sql,args)).rows[0]||null;
-const later=h=>new Date(Date.now()+h*3600000).toISOString();
-const hex=buf=>Array.from(buf,x=>x.toString(16).padStart(2,'0')).join('');
-const token=()=>hex(crypto.getRandomValues(new Uint8Array(32)));
-const sha=async text=>hex(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text))));
-const memberships=async(db,id)=>(await q(db,'SELECT m.rowid AS membership_id,m.role,m.game_id,m.team_id,g.name AS game_name,t.name AS team_name FROM memberships m LEFT JOIN games g ON g.id=m.game_id LEFT JOIN teams t ON t.id=m.team_id WHERE m.user_id=?',[id])).rows;
-const admin=ms=>ms.some(m=>m.role==='admin');
-const managesGame=(ms,id)=>admin(ms)||ms.some(m=>m.role==='game_manager'&&m.game_id===id);
-const manageTeam=(ms,t)=>managesGame(ms,t.game_id)||ms.some(m=>['captain','team_manager'].includes(m.role)&&m.team_id===t.id);
-const belongs=(ms,t)=>manageTeam(ms,t)||ms.some(m=>m.role==='player'&&m.team_id===t.id);
-async function teamById(db,id){const t=await one(db,'SELECT * FROM teams WHERE id=?',[id]);if(!t)fail(404,'Team not found');return t;}
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<meta content="#f7f8fb" name="theme-color"/>
+<title>EsportsHub — Sign in</title>
+<link href="css/style.css?v=20261013-5" rel="stylesheet"/>
 
-async function clerkIdentity(req,env){
-  if(!env.CLERK_SECRET_KEY||!env.CLERK_PUBLISHABLE_KEY)fail(503,'Clerk is not configured');
-  const client=createClerkClient({secretKey:env.CLERK_SECRET_KEY,publishableKey:env.CLERK_PUBLISHABLE_KEY});
-  const origins=(env.FRONTEND_ORIGIN||'').split(',').map(x=>x.trim()).filter(Boolean);
-  const state=await client.authenticateRequest(req,{authorizedParties:origins,acceptsToken:'session_token'});
-  if(!state.isAuthenticated)fail(401,'Sign in with Clerk');
-  const clerkUserId=state.toAuth().userId;
-  if(!clerkUserId)fail(401,'Invalid Clerk session');
-  return {clerkUserId,client};
-}
-async function currentUser(req,env,db){
-  const {clerkUserId,client}=await clerkIdentity(req,env);
-  let u=await one(db,'SELECT id,email,display_name FROM users WHERE clerk_user_id=?',[clerkUserId]);
-  if(!u){
-    const profile=await clerkProfile(client,clerkUserId),id=uuid();
-    // Both statements run under one write transaction. Concurrent first requests
-    // cannot create duplicate users or duplicate unassigned memberships.
-    await db.batch([
-      {sql:'INSERT OR IGNORE INTO users(id,email,display_name,password_hash,clerk_user_id) VALUES(?,?,?,?,?)',args:[id,profile.email,profile.name,legacyMarker(),clerkUserId]},
-      {sql:"INSERT INTO memberships(user_id,role) SELECT u.id,'player' FROM users u WHERE u.clerk_user_id=? AND NOT EXISTS(SELECT 1 FROM memberships m WHERE m.user_id=u.id)",args:[clerkUserId]}
-    ],'write');
-    u=await one(db,'SELECT id,email,display_name FROM users WHERE clerk_user_id=?',[clerkUserId]);
-    if(!u)fail(409,'This email belongs to another EsportsHub account. Ask an administrator to resolve the account conflict.');
-  }
-  return {id:u.id,name:u.display_name,email:u.email,roles:await memberships(db,u.id),clerkUserId};
-}
-async function clerkProfile(client,clerkUserId){
-  const user=await client.users.getUser(clerkUserId);
-  const email=user.emailAddresses.find(e=>e.id===user.primaryEmailAddressId)?.emailAddress || user.emailAddresses[0]?.emailAddress;
-  if(!email)fail(400,'Add a verified email address to Clerk');
-  const selected=user.emailAddresses.find(e=>e.emailAddress===email);
-  if(selected?.verification?.status!=='verified')fail(403,'Verify your email address in Clerk first');
-  return {email:email.toLowerCase(),name:clean([user.firstName,user.lastName].filter(Boolean).join(' ')||user.username||email.split('@')[0],80)};
-}
-// The preexisting password_hash NOT NULL column is populated with an unusable
-// random marker for newly enrolled Clerk users. It is NEVER a password hash;
-// run the supplied migration later to remove the legacy column entirely.
-const legacyMarker=()=>`clerk-disabled-${uuid()}-${uuid()}`;
-async function enrollUser(db,clerkUserId,profile){
-  const id=uuid();
-  await q(db,'INSERT INTO users(id,email,display_name,password_hash,clerk_user_id) VALUES(?,?,?,?,?)',[id,profile.email,profile.name,legacyMarker(),clerkUserId]);
-  return id;
-}
-let profileSchemaReady=false;
-async function ensureProfileSchema(db){
-  if(profileSchemaReady)return;
-  await db.batch([
-    {sql:'CREATE TABLE IF NOT EXISTS user_profiles(user_id TEXT PRIMARY KEY,username TEXT,main_game_id TEXT,banner TEXT)',args:[]},
-    {sql:'CREATE TABLE IF NOT EXISTS user_game_usernames(user_id TEXT NOT NULL,game_id TEXT NOT NULL,username TEXT NOT NULL,PRIMARY KEY(user_id,game_id))',args:[]},
-    {sql:'CREATE TABLE IF NOT EXISTS team_order(team_id TEXT PRIMARY KEY,position INTEGER NOT NULL)',args:[]}
-  ],'write');
-  profileSchemaReady=true;
-}
-async function app(req,env){
-  const path=new URL(req.url).pathname.replace(/\/$/,'')||'/';
-  const method=req.method;
-  if(method==='GET'&&path==='/health')return j({ok:true,service:'EsportsHub API',auth:'Clerk'});
-  if(!env.TURSO_DATABASE_URL||!env.TURSO_AUTH_TOKEN)fail(503,'Turso is not configured');
-  const db=createClient({url:env.TURSO_DATABASE_URL,authToken:env.TURSO_AUTH_TOKEN});
-  if(method==='GET'&&path==='/health/db'){await q(db,'SELECT 1');return j({ok:true,database:'connected'});}
-  // First-admin enrollment requires both a real Clerk session and the bootstrap
-  // secret. The membership insert is last; repeat attempts cannot add more admins.
-  if(method==='POST'&&path==='/setup'){
-    const {clerkUserId,client}=await clerkIdentity(req,env);
-    if(!env.BOOTSTRAP_SECRET||req.headers.get('x-bootstrap-secret')!==env.BOOTSTRAP_SECRET)fail(403,'Invalid setup secret');
-    const n=await one(db,"SELECT COUNT(*) AS n FROM memberships WHERE role='admin'");
-    if(Number(n.n)>0)fail(409,'Administrator already enrolled');
-    const p=await clerkProfile(client,clerkUserId);
-    const existing=await one(db,'SELECT id FROM users WHERE clerk_user_id=?',[clerkUserId]);
 
-    // Use a transaction to keep initial enrollment atomic.
-    const id=existing?.id||uuid();
-    await db.batch([
-      ...(!existing?[{sql:'INSERT INTO users(id,email,display_name,password_hash,clerk_user_id) VALUES(?,?,?,?,?)',args:[id,p.email,p.name,legacyMarker(),clerkUserId]}]:[]),
-      {sql:"DELETE FROM memberships WHERE user_id=? AND role='player' AND game_id IS NULL AND team_id IS NULL",args:[id]},
-      {sql:'INSERT INTO memberships(user_id,role) VALUES(?,?)',args:[id,'admin']},
-      {sql:'INSERT OR IGNORE INTO games(id,name) VALUES(?,?)',args:[uuid(),'Overwatch']}
-    ],'write');
-    return j({ok:true,message:'Administrator enrolled; refresh EsportsHub.'},201);
-  }
-  // Preview requires a Clerk session but does not require EsportsHub enrollment.
-  if(method==='POST'&&path==='/invites/preview'){
-    await clerkIdentity(req,env);
-    const b=await body(req),raw=required(b.inviteToken,128);
-    const invite=await one(db,'SELECT i.*,g.name AS game_name,t.name AS team_name FROM invites i LEFT JOIN games g ON g.id=i.game_id LEFT JOIN teams t ON t.id=i.team_id WHERE i.token_hash=?',[await sha(raw)]);
-    if(!invite||invite.revoked_at||invite.used_by||invite.expires_at<=new Date().toISOString()||Number(invite.uses_count)>=Number(invite.max_uses))fail(400,'Invitation is invalid, expired, or fully redeemed');
-    return j({role:invite.role,gameId:invite.game_id,teamId:invite.team_id,gameName:invite.game_name,teamName:invite.team_name,expiresAt:invite.expires_at,remainingUses:Number(invite.max_uses)-Number(invite.uses_count)});
-  }
-  // Invite redemption is *not* account signup. Clerk signup happens first.
-  if(method==='POST'&&path==='/invites/redeem'){
-    const {clerkUserId,client}=await clerkIdentity(req,env);
-    const b=await body(req),raw=required(b.inviteToken,128);
-    const invite=await one(db,'SELECT * FROM invites WHERE token_hash=?',[await sha(raw)]);
-    if(!invite||invite.revoked_at||invite.used_by||invite.expires_at<=new Date().toISOString()||Number(invite.uses_count)>=Number(invite.max_uses))fail(400,'Invitation is invalid, expired, or fully redeemed');
-    const existing=await one(db,'SELECT id FROM users WHERE clerk_user_id=?',[clerkUserId]);
-    if(existing){
-      const assigned=await one(db,'SELECT 1 AS found FROM memberships WHERE user_id=? AND role=? AND game_id IS ? AND team_id IS ?',[existing.id,invite.role,invite.game_id,invite.team_id]);
-      if(assigned)fail(409,'You already have this membership');
-    }
-    const profile=existing?null:await clerkProfile(client,clerkUserId);
-    const id=existing?.id||uuid();
-    const statements=[];
-    if(!existing)statements.push({sql:'INSERT INTO users(id,email,display_name,password_hash,clerk_user_id) VALUES(?,?,?,?,?)',args:[id,profile.email,profile.name,legacyMarker(),clerkUserId]});
-    statements.push({sql:"DELETE FROM memberships WHERE user_id=? AND role='player' AND game_id IS NULL AND team_id IS NULL",args:[id]});
-    statements.push({sql:'INSERT INTO memberships(user_id,role,game_id,team_id) VALUES(?,?,?,?)',args:[id,invite.role,invite.game_id,invite.team_id]});
-    // A SQLite trigger checks remaining capacity and updates usage atomically.
-    statements.push({sql:'INSERT INTO invite_redemptions(invite_id,user_id) VALUES(?,?)',args:[invite.id,id]});
-    try{await db.batch(statements,'write');}
-    catch(e){console.error('Invitation redemption transaction failed',e?.message);fail(409,'Invitation could not be redeemed. It may be full, expired, or already used by this account.');}
-    return j({ok:true,message:'Invitation accepted'},201);
-  }
-  const user=await currentUser(req,env,db),ms=user.roles;
-  if(method==='GET'&&path==='/me')return j({user:{id:user.id,name:user.name,email:user.email},roles:ms});
-  if(method==='PUT'&&path==='/me/profile'){
-    const b=await body(req);await ensureProfileSchema(db);
-    const banner=clean(b.banner||'preset:purple',500);
-    if(!(/^preset:(purple|sunset|ocean|forest|night)$/.test(banner)||/^https:\/\/[^\s"'\\]+$/.test(banner)))fail(400,'Invalid banner');
-    const username=clean(b.username,32);
-    if(username&&!/^[A-Za-z0-9_.]{3,32}$/.test(username))fail(400,'Username must be 3-32 characters: letters, numbers, underscores or dots');
-    if(username&&await one(db,'SELECT user_id FROM user_profiles WHERE lower(username)=lower(?) AND user_id<>?',[username,user.id]))fail(409,'That username is already taken');
-    const mainGame=b.main_game_id?clean(b.main_game_id,80):null;
-    if(mainGame&&!await one(db,'SELECT id FROM games WHERE id=?',[mainGame]))fail(404,'Main game not found');
-    const src=b.game_usernames&&typeof b.game_usernames==='object'&&!Array.isArray(b.game_usernames)?b.game_usernames:{};
-    const rows=[];
-    for(const [gid,name] of Object.entries(src).slice(0,50)){
-      const g=clean(gid,80),v=clean(name,64);if(!v)continue;
-      if(!await one(db,'SELECT id FROM games WHERE id=?',[g]))fail(404,'Game not found');
-      rows.push([g,v]);
-    }
-    const client=createClerkClient({secretKey:env.CLERK_SECRET_KEY,publishableKey:env.CLERK_PUBLISHABLE_KEY});
-    const cu=await client.users.getUser(user.clerkUserId);
-    const displayName=clean([cu.firstName,cu.lastName].filter(Boolean).join(' ')||user.name,80);
-    await db.batch([
-      {sql:'UPDATE users SET display_name=? WHERE id=?',args:[displayName,user.id]},
-      {sql:'INSERT INTO user_profiles(user_id,username,main_game_id,banner) VALUES(?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET username=excluded.username,main_game_id=excluded.main_game_id,banner=excluded.banner',args:[user.id,username||null,mainGame,banner]},
-      {sql:'DELETE FROM user_game_usernames WHERE user_id=?',args:[user.id]},
-      ...rows.map(([g,v])=>({sql:'INSERT INTO user_game_usernames(user_id,game_id,username) VALUES(?,?,?)',args:[user.id,g,v]}))
-    ],'write');
-    return j({ok:true,name:displayName});
-  }
-  const profilePath=path.match(/^\/profile\/([^/]+)$/);
-  if(method==='GET'&&profilePath){
-    await ensureProfileSchema(db);
-    const target=await one(db,'SELECT id,display_name,clerk_user_id FROM users WHERE id=?',[profilePath[1]]);
-    if(!target)fail(404,'Member not found');
-    // Self, administrators, teammates, and managers of the member's team may view.
-    let allowed=target.id===user.id||admin(ms);
-    if(!allowed){
-      for(const tm of await memberships(db,target.id)){
-        if(!tm.team_id)continue;
-        if(ms.some(m=>m.team_id===tm.team_id)){allowed=true;break;}
-        const t=await one(db,'SELECT id,game_id FROM teams WHERE id=?',[tm.team_id]);
-        if(t&&manageTeam(ms,t)){allowed=true;break;}
-      }
-    }
-    if(!allowed)fail(403,'Profile access denied');
-    const p=await one(db,'SELECT up.username,up.main_game_id,up.banner,g.name AS main_game_name FROM user_profiles up LEFT JOIN games g ON g.id=up.main_game_id WHERE up.user_id=?',[target.id]);
-    const igns=(await q(db,'SELECT ug.game_id,g.name AS game_name,ug.username FROM user_game_usernames ug JOIN games g ON g.id=ug.game_id WHERE ug.user_id=? ORDER BY g.name',[target.id])).rows;
-    let imageUrl=null;
-    try{if(target.clerk_user_id){const client=createClerkClient({secretKey:env.CLERK_SECRET_KEY,publishableKey:env.CLERK_PUBLISHABLE_KEY});imageUrl=(await client.users.getUser(target.clerk_user_id)).imageUrl||null;}}catch{}
-    return j({user_id:target.id,name:target.display_name,image_url:imageUrl,username:p?.username||null,banner:p?.banner||'preset:purple',main_game_id:p?.main_game_id||null,main_game_name:p?.main_game_name||null,game_usernames:igns});
-  }
-  if(method==='PUT'&&path==='/teams/order'){
-    if(!admin(ms))fail(403,'Administrator required');
-    await ensureProfileSchema(db);
-    const b=await body(req);if(!Array.isArray(b.ids)||b.ids.length>500)fail(400,'ids array required');
-    const ids=[...new Set(b.ids.map(x=>clean(x,80)).filter(Boolean))];
-    const existing=new Set((await q(db,'SELECT id FROM teams')).rows.map(r=>r.id));
-    if(!ids.every(x=>existing.has(x)))fail(404,'Unknown team in order');
-    await db.batch([{sql:'DELETE FROM team_order',args:[]},...ids.map((id,i)=>({sql:'INSERT INTO team_order(team_id,position) VALUES(?,?)',args:[id,i]}))],'write');
-    return j({ok:true});
-  }
-  if(method==='GET'&&path==='/members'){
-    if(!admin(ms))fail(403,'Administrator required');
-    const users=(await q(db,'SELECT id,display_name AS name FROM users ORDER BY display_name')).rows;
-    const assignments=(await q(db,'SELECT m.rowid AS membership_id,m.user_id,m.role,m.game_id,m.team_id,g.name AS game_name,t.name AS team_name FROM memberships m LEFT JOIN games g ON g.id=m.game_id LEFT JOIN teams t ON t.id=m.team_id')).rows;
-    return j(users.map(u=>({...u,roles:assignments.filter(m=>m.user_id===u.id)})));
-  }
-  const assignmentPath=path.match(/^\/members\/([^/]+)\/assignment$/);
-  if(method==='PUT'&&assignmentPath){
-    if(!admin(ms))fail(403,'Administrator required');
-    const targetId=assignmentPath[1],b=await body(req),role=required(b.role,30);
-    if(!['player','captain','team_manager','game_manager','admin'].includes(role))fail(400,'Invalid role');
-    const membershipId=b.membershipId==null?null:Number(b.membershipId);
-    if(membershipId!==null&&(!Number.isInteger(membershipId)||membershipId<1))fail(400,'Invalid membership');
-    let gameId=null,teamId=null;
-    if(['captain','team_manager'].includes(role)||(role==='player'&&b.teamId)){
-      const team=await teamById(db,required(b.teamId,80));teamId=team.id;gameId=team.game_id;
-    }else if(role==='game_manager'){
-      gameId=required(b.gameId,80);if(!await one(db,'SELECT id FROM games WHERE id=?',[gameId]))fail(404,'Game not found');
-    }
-    const tx=await db.transaction('write');
-    try{
-      // Recheck authority under the write lock and preserve unrelated assignments.
-      if(!admin(await memberships(tx,user.id)))fail(403,'Administrator required');
-      if(!await one(tx,'SELECT id FROM users WHERE id=?',[targetId]))fail(404,'Member not found');
-      const old=membershipId===null?null:await one(tx,'SELECT rowid AS membership_id,* FROM memberships WHERE rowid=? AND user_id=?',[membershipId,targetId]);
-      if(membershipId!==null&&!old)fail(409,'Assignment changed. Refresh the member list.');
-      if(old?.role==='admin'&&role!=='admin'){
-        if(targetId===user.id)fail(400,'Ask another administrator to change your administrator role.');
-        const count=await one(tx,"SELECT COUNT(DISTINCT user_id) AS n FROM memberships WHERE role='admin'");
-        if(Number(count.n)<=1)fail(409,'The last administrator cannot be demoted');
-      }
-      if(old)await q(tx,'DELETE FROM memberships WHERE rowid=? AND user_id=?',[membershipId,targetId]);
-      const duplicate=await one(tx,'SELECT 1 AS found FROM memberships WHERE user_id=? AND role=? AND game_id IS ? AND team_id IS ?',[targetId,role,gameId,teamId]);
-      if(!duplicate)await q(tx,'INSERT INTO memberships(user_id,role,game_id,team_id) VALUES(?,?,?,?)',[targetId,role,gameId,teamId]);
-      if(gameId||teamId||role!=='player')await q(tx,"DELETE FROM memberships WHERE user_id=? AND role='player' AND game_id IS NULL AND team_id IS NULL",[targetId]);
-      await tx.commit();
-    }catch(e){await tx.rollback();throw e;}finally{tx.close();}
-    return j({ok:true,roles:await memberships(db,targetId)});
-  }
-  if(method==='GET'&&path==='/games'){
-    const games=(await q(db,'SELECT * FROM games ORDER BY name')).rows;
-    return j(games.filter(g=>admin(ms)||ms.some(m=>m.game_id===g.id)));
-  }
-  if(method==='POST'&&path==='/games'){
-    if(!admin(ms))fail(403,'Admin only');const b=await body(req),id=uuid(),name=required(b.name,80);
-    await q(db,'INSERT INTO games(id,name) VALUES(?,?)',[id,name]);return j({id,name},201);
-  }
-  if(method==='GET'&&path==='/teams'){
-    await ensureProfileSchema(db);
-    const teams=(await q(db,'SELECT t.*,g.name AS game_name FROM teams t JOIN games g ON g.id=t.game_id LEFT JOIN team_order o ON o.team_id=t.id ORDER BY COALESCE(o.position,1000000),g.name,t.name')).rows;
-    return j(teams.filter(t=>belongs(ms,t)));
-  }
-  if(method==='POST'&&path==='/teams'){
-    const b=await body(req),gameId=required(b.gameId,80),name=required(b.name,80);
-    if(!managesGame(ms,gameId))fail(403,'Not authorized for this game');
-    if(!await one(db,'SELECT id FROM games WHERE id=?',[gameId]))fail(404,'Game not found');
-    const id=uuid();await q(db,'INSERT INTO teams(id,game_id,name,description) VALUES(?,?,?,?)',[id,gameId,name,clean(b.description,1000)]);
-    return j({id,game_id:gameId,name},201);
-  }
-  const teamPath=path.match(/^\/teams\/([^/]+)$/);
-  if(teamPath){
-    const team=await teamById(db,teamPath[1]);if(!belongs(ms,team))fail(403,'Team access denied');
-    if(method==='GET'){
-      const members=(await q(db,'SELECT u.id,u.display_name,m.role FROM memberships m JOIN users u ON u.id=m.user_id WHERE m.team_id=? ORDER BY u.display_name',[team.id])).rows;
-      return j({team,members});
-    }
-    if(method==='PATCH'){
-      if(!managesGame(ms,team.game_id))fail(403,'Manager required');const b=await body(req);
-      await q(db,'UPDATE teams SET name=?,description=? WHERE id=?',[required(b.name??team.name,80),clean(b.description??team.description,1000),team.id]);return j({ok:true});
-    }
-    if(method==='DELETE'){
-      if(!managesGame(ms,team.game_id))fail(403,'Manager required');await q(db,'DELETE FROM teams WHERE id=?',[team.id]);return j({ok:true});
-    }
-  }
-  if(method==='POST'&&path==='/invites'){
-    const b=await body(req),role=required(b.role,30);
-    if(!['admin','game_manager','captain','player'].includes(role))fail(400,'Invalid role');
-    let gameId=b.gameId||null,teamId=b.teamId||null;
-    if(role==='admin'){
-      if(!admin(ms))fail(403,'Admin only');gameId=null;teamId=null;
-    }else if(role==='game_manager'){
-      if(!admin(ms)||!gameId)fail(403,'Admin and game required');
-      if(!await one(db,'SELECT id FROM games WHERE id=?',[gameId]))fail(404,'Game not found');teamId=null;
-    }else{
-      const team=await teamById(db,teamId);
-      if(!manageTeam(ms,team))fail(403,'Cannot invite to this team');gameId=team.game_id;
-    }
-    const maxUses=role==='player'?Number(b.maxUses??1):1;
-    if(!Number.isInteger(maxUses)||maxUses<1||maxUses>100)fail(400,'Maximum players must be a whole number from 1 to 100');
-    const secret=token(),id=uuid(),expiresAt=later(72);
-    await q(db,'INSERT INTO invites(id,token_hash,created_by,role,game_id,team_id,expires_at,max_uses) VALUES(?,?,?,?,?,?,?,?)',[id,await sha(secret),user.id,role,gameId,teamId,expiresAt,maxUses]);
-    return j({token:secret,role,gameId,teamId,expiresAt,maxUses},201);
-  }
-  const child=path.match(/^\/teams\/([^/]+)\/(events|availability|reports|concerns)$/);
-  if(child){
-    const team=await teamById(db,child[1]),kind=child[2];if(!belongs(ms,team))fail(403,'Team access denied');
-    if(kind==='events'){
-      if(method==='GET')return j((await q(db,'SELECT id,type,title,opponent,starts_at,notes FROM events WHERE team_id=? ORDER BY starts_at DESC LIMIT 200',[team.id])).rows);
-      if(method==='POST'){
-        if(!manageTeam(ms,team))fail(403,'Captain or manager required');const b=await body(req);
-        if(!['practice','scrim','match','event'].includes(b.type)||!Number.isFinite(Date.parse(b.startsAt)))fail(400,'Invalid event details');
-        const id=uuid();await q(db,'INSERT INTO events(id,team_id,type,title,opponent,starts_at,notes,created_by) VALUES(?,?,?,?,?,?,?,?)',[id,team.id,b.type,required(b.title,120),clean(b.opponent,100),new Date(b.startsAt).toISOString(),clean(b.notes,2000),user.id]);return j({id},201);
-      }
-    }
-    if(kind==='availability'){
-      if(method==='GET'){
-        if(manageTeam(ms,team))return j((await q(db,'SELECT a.user_id,u.display_name,a.slots,a.updated_at FROM availability a JOIN users u ON u.id=a.user_id WHERE team_id=?',[team.id])).rows.map(r=>({...r,slots:JSON.parse(r.slots)})));
-        const r=await one(db,'SELECT slots,updated_at FROM availability WHERE team_id=? AND user_id=?',[team.id,user.id]);return j(r?{slots:JSON.parse(r.slots),updated_at:r.updated_at}:{slots:[]});
-      }
-      if(method==='PUT'){
-        const b=await body(req);
-        if(!Array.isArray(b.slots)||b.slots.length>336||b.slots.some(x=>!Number.isInteger(x)||x<0||x>=336))fail(400,'Expected 0–335 half-hour slots');
-        await q(db,'INSERT INTO availability(user_id,team_id,slots,updated_at) VALUES(?,?,?,CURRENT_TIMESTAMP) ON CONFLICT(user_id,team_id) DO UPDATE SET slots=excluded.slots,updated_at=CURRENT_TIMESTAMP',[user.id,team.id,JSON.stringify([...new Set(b.slots)])]);return j({ok:true});
-      }
-    }
-    if(kind==='reports'){
-      if(method==='GET')return j((await q(db,'SELECT r.id,r.type,r.title,r.content,r.created_at,u.display_name AS author FROM reports r JOIN users u ON u.id=r.created_by WHERE r.team_id=? ORDER BY r.created_at DESC LIMIT 200',[team.id])).rows);
-      if(method==='POST'){
-        if(!manageTeam(ms,team))fail(403,'Captain or manager required');const b=await body(req);
-        if(!['scrim','vod','match','practice'].includes(b.type))fail(400,'Invalid report type');const id=uuid();await q(db,'INSERT INTO reports(id,team_id,type,title,content,created_by) VALUES(?,?,?,?,?,?)',[id,team.id,b.type,required(b.title,140),required(b.content,8000),user.id]);return j({id},201);
-      }
-    }
-    if(kind==='concerns'){
-      if(method==='POST'){
-        const b=await body(req);const id=uuid();
-        if(b.subjectUserId){const subject=await one(db,'SELECT 1 AS found FROM memberships WHERE user_id=? AND team_id=?',[b.subjectUserId,team.id]);if(!subject)fail(400,'Player not in this team');}
-        await q(db,'INSERT INTO concerns(id,team_id,subject_user_id,author_id,details) VALUES(?,?,?,?,?)',[id,team.id,b.subjectUserId||null,user.id,required(b.details,4000)]);
-        return j({id,ok:true},201);
-      }
-      if(method==='GET'){
-        if(!managesGame(ms,team.game_id))fail(403,'Only managers and admins can view private concerns');
-        return j((await q(db,'SELECT c.id,c.details,c.status,c.created_at,u.display_name AS author FROM concerns c JOIN users u ON u.id=c.author_id WHERE c.team_id=? ORDER BY c.created_at DESC',[team.id])).rows);
-      }
-    }
-  }
-  fail(404,'Endpoint not found');
-}
-export default {
-  async fetch(req,env){
-    const origin=req.headers.get('origin');
-    const allowed=(env.FRONTEND_ORIGIN||'').split(',').map(s=>s.trim()).filter(Boolean);
-    const cors=origin&&allowed.includes(origin)?{'access-control-allow-origin':origin,'vary':'Origin','access-control-allow-methods':'GET,POST,PUT,PATCH,DELETE,OPTIONS','access-control-allow-headers':'Authorization,Content-Type,X-Bootstrap-Secret'}:{};
-    if(req.method==='OPTIONS')return new Response(null,{status:cors['access-control-allow-origin']?204:403,headers:cors});
-    try{
-      const res=await app(req,env);
-      for(const [k,v] of Object.entries(cors))res.headers.set(k,v);
-      res.headers.set('cache-control','no-store');res.headers.set('x-content-type-options','nosniff');return res;
-    }catch(e){
-      const status=e.status||500;
-      if(status>=500)console.error('EsportsHub backend failure',{path:new URL(req.url).pathname,message:String(e.message||e),code:e.code||null});
-      const res=j({error:status===500?'Internal server error':e.message},status);
-      for(const [k,v] of Object.entries(cors))res.headers.set(k,v);
-      res.headers.set('cache-control','no-store');return res;
-    }
-  }
-};
+
+
+<style>
+.hidden{display:none!important}.eh-heading{margin:14px 0 22px}.eh-heading h1{font-family:Manrope,sans-serif;font-size:clamp(24px,3vw,34px);margin:5px 0 8px}.eh-heading p,.eh-muted{color:var(--muted);line-height:1.5}.eh-kicker{font-size:11px;letter-spacing:.12em;font-weight:800;color:var(--accent)}.eh-panel{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;min-width:0}.eh-panel h2{font-family:Manrope,sans-serif;font-size:16px;margin:0 0 13px}.eh-panel h3{font-size:14px;margin:20px 0 11px}.eh-grid{display:grid;gap:18px;margin:18px 0}.eh-grid.two{grid-template-columns:repeat(2,minmax(0,1fr))}.eh-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.eh-stats small{display:block;color:var(--muted);font-weight:650}.eh-stats strong{display:block;font-size:25px;margin:10px 0 0}.eh-btn{border:0;border-radius:8px;padding:10px 16px;background:#6326a6;color:#fff;font-weight:700;cursor:pointer}.eh-btn.tiny{padding:8px 12px;font-size:12px}.eh-panel input,.eh-panel textarea,.eh-panel select{display:block;width:100%;min-height:39px;border:1px solid var(--border);background:var(--surface-alt);color:var(--ink);border-radius:8px;padding:10px;margin:8px 0 13px}.eh-panel textarea{min-height:100px}.eh-panel label{display:block;font-size:12px;font-weight:700}.eh-panel form{margin-top:12px}.eh-item{border-bottom:1px solid var(--border);padding:12px 0;line-height:1.5}.eh-item:last-child{border-bottom:0}.eh-pick{width:100%;display:block;text-align:left;border:1px solid var(--border);border-radius:9px;padding:12px;margin:7px 0;background:var(--surface-alt);color:var(--ink);cursor:pointer}.eh-pick.active{border-color:var(--accent);background:var(--accent-bg)}.eh-alert{padding:12px 16px;border:1px solid var(--border);border-radius:9px;margin:10px 0 17px;color:var(--muted);background:var(--surface)}.eh-alert:empty{display:none}.eh-auth{max-width:1000px;margin:10px auto}.eh-row{display:flex;justify-content:space-between;align-items:center;gap:12px}.eh-week-wrap{overflow:auto;max-height:650px;margin-top:18px;border:1px solid var(--border);border-radius:8px}.eh-week-grid{display:grid;grid-template-columns:64px repeat(7,minmax(58px,1fr));min-width:550px;user-select:none}.eh-week-grid .cell{border-right:1px solid var(--border);border-bottom:1px solid var(--border);min-height:22px;background:var(--surface);font-size:10px;color:var(--muted)}.eh-week-grid .time{padding:4px 7px;background:var(--surface-alt);text-align:right}.eh-week-grid .head{position:sticky;top:0;z-index:1;background:var(--surface-alt);font-weight:700;text-align:center;padding:10px 4px}.eh-week-grid button.cell{border-radius:0;cursor:crosshair;padding:0}.eh-week-grid button.cell.chosen{background:#8752c6}.eh-week-grid button.cell:hover{outline:1px solid var(--accent);outline-offset:-1px}.online-label{font-size:11px;color:var(--muted)}.sidebar-footer{display:flex;gap:10px;align-items:center}.nav-link{gap:3px}.eh-selected{color:var(--muted)}@media(max-width:850px){.eh-grid.two{grid-template-columns:1fr}.eh-stats{grid-template-columns:1fr 1fr}.online-label{display:none}}@media(max-width:550px){.eh-stats{grid-template-columns:1fr}.eh-panel{padding:16px}}
+
+/* Standalone, device-theme-aware login screen. Dashboard is hidden until authorized. */
+.eh-login-page{min-height:100svh;display:flex;flex-direction:column;background:var(--bg,#faf8fd);color:var(--ink,#251b32)}
+.eh-login-header{height:80px;padding:0 clamp(20px,5vw,70px);display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);background:var(--surface)}
+.eh-login-brand{display:flex;align-items:center;gap:12px}.eh-login-brand strong{display:block;font-size:18px;letter-spacing:-.04em}.eh-login-brand small{display:block;color:var(--muted);font-size:12px;margin-top:3px}
+.eh-login-mark{display:flex;align-items:center;justify-content:center;width:43px;height:43px;background:#6326a6;color:white;border-radius:12px;font-size:28px;font-weight:850;letter-spacing:-.08em}.eh-login-mark span{color:#e2c9ff}.eh-login-secure{font-size:12px;color:var(--muted)}
+.eh-login-main{width:min(1450px,100%);margin:auto;display:grid;grid-template-columns:minmax(260px,.8fr) minmax(0,2fr);align-items:center;gap:clamp(26px,5vw,80px);padding:56px 26px}
+.eh-login-copy h1{font-size:clamp(42px,5vw,70px);line-height:1.08;letter-spacing:-.065em;margin:15px 0 22px}.eh-login-copy p{max-width:430px;font-size:16px;line-height:1.8;color:var(--muted)}.eh-login-caption{border-top:1px solid var(--border);max-width:400px;margin-top:32px;padding-top:18px;font-size:12px;color:var(--muted)}
+.eh-login-form{min-width:0}.eh-login-form .eh-auth{margin:0;max-width:none}.eh-login-form .eh-grid.two{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:0}.eh-login-form .eh-panel{padding:24px;border-radius:16px;box-shadow:0 10px 35px rgba(35,19,60,.05)}.eh-login-form .eh-panel h2{font-size:18px}.eh-login-form #clerk-sign-in,.eh-login-form #clerk-sign-up{min-height:40px}.eh-login-form .eh-panel:has(#clerk-sign-up){margin-top:5px}
+.eh-login-message:not(:empty){margin-top:15px;padding:12px;background:var(--surface);border:1px solid var(--border);border-radius:9px;font-size:13px;color:var(--muted)}
+.eh-login-footer{padding:20px;text-align:center;border-top:1px solid var(--border);color:var(--muted);font-size:12px}
+@media(max-width:800px){.eh-login-main{grid-template-columns:1fr;max-width:540px;padding:35px 18px}.eh-login-copy h1{font-size:38px}.eh-login-copy p{font-size:14px}.eh-login-caption{display:none}.eh-login-header{height:70px;padding:0 20px}}
+@media(max-width:420px){.eh-login-secure{display:none}.eh-login-form .eh-panel{padding:15px}}
+
+.eh-login-form .eh-grid.two>p{grid-column:1/-1}@media(max-width:1100px){.eh-login-main{grid-template-columns:1fr;max-width:900px}.eh-login-copy h1{font-size:40px}}@media(max-width:650px){.eh-login-form .eh-grid.two{grid-template-columns:1fr}.eh-login-main{max-width:540px}}
+</style></head>
+<body>
+<div id="loginPage" class="eh-login-page">
+  <header class="eh-login-header"><div class="eh-login-brand"><span class="eh-login-mark">E<span>.</span></span><div><strong>EsportsHub</strong><small>Florida Poly Esports</small></div></div><span class="eh-login-secure">Secure member access</span></header>
+  <main class="eh-login-main"><div class="eh-login-copy"><span class="eh-kicker">FLORIDA POLY ESPORTS</span><h1>Your team.<br>Your workspace.</h1><p>Sign in to view your roster, manage your schedule, coordinate practices, and stay connected with your team.</p><div class="eh-login-caption">A private workspace for Florida Poly Esports members.</div></div>
+    <div class="eh-login-form"><article id="invitationCard" class="eh-panel hidden" style="margin-bottom:16px"><h2>You're invited</h2><p id="invitationStatus" role="status" aria-live="polite"></p><p id="invitationAccount" class="eh-muted"></p><div id="inviteAuthButtons"><button type="button" class="eh-btn" id="inviteSignUp">Create an account</button> <button type="button" class="eh-btn" id="inviteSignIn">Sign in</button></div><button type="button" class="eh-btn hidden" id="acceptInvite">Accept invitation</button> <button type="button" class="eh-btn hidden" id="invitationSwitch">Use another account</button> <button type="button" class="eh-btn" id="invitationCancel">Continue without invitation</button></article><section class="eh-auth" id="guest"><div class="eh-grid two"><article class="eh-panel" id="authCard"><h2>Sign in</h2><p class="eh-muted">Already have an account? Sign in below.</p><p id="signInLoading" class="eh-muted" role="status">Loading sign-in…</p><div id="clerk-sign-in"></div></article><article class="eh-panel" id="signUpCard"><h2>Sign up</h2><p class="eh-muted">Create an account to join as a player.</p><p id="signUpLoading" class="eh-muted" role="status">Loading sign-up…</p><div id="clerk-sign-up"></div></article><p class="eh-muted" style="margin:16px 0 0">Create an account to join as a player. An administrator can assign your team after sign-up.</p></div></section><article id="accountRecovery" class="eh-panel hidden"><h2>Account connected</h2><p id="accountRecoveryStatus" role="status"></p><button type="button" class="eh-btn" id="retryWorkspace">Try again</button> <button type="button" class="eh-btn" id="recoverySignOut">Sign out / use another account</button></article><article id="enrollmentCard" class="eh-panel hidden"><h2>Join your team</h2><p class="eh-muted">Your account is ready. Paste the invitation from your captain or game manager to review your team and role.</p><form id="enrollmentForm"><label for="enrollmentToken">Invitation link or token</label><input id="enrollmentToken" required autocomplete="off" placeholder="Paste invitation link"><button class="eh-btn" type="submit">Review invitation</button></form><button id="enrollmentSignOut" class="eh-btn" type="button">Sign out / change account</button></article><div id="guestNotice" class="eh-login-message" role="status" aria-live="polite"></div></div>
+  </main><footer class="eh-login-footer">EsportsHub · Florida Poly Esports</footer>
+</div>
+<div class="app-shell hidden" id="dashboardShell">
+<aside class="sidebar" id="sidebar">
+<a aria-label="EsportsHub home" class="brand" href="#dashboard"><span class="brand-mark">E<span class="brand-dot">.</span></span><span><strong>EsportsHub</strong><small>Club operations</small></span></a>
+<div class="nav-heading">WORKSPACE</div><nav aria-label="Main navigation" class="nav">
+<a class="nav-link active" data-screen="dashboard" href="#dashboard">◫   Overview</a>
+<a class="nav-link" data-screen="teams" href="#teams">♙   Teams</a>
+<a class="nav-link" data-screen="schedule" href="#schedule">▦   Schedule</a>
+<a class="nav-link" data-screen="availability" href="#availability">◷   Availability</a>
+<a class="nav-link" data-screen="reports" href="#reports">▤   Reports</a>
+<a class="nav-link" data-screen="concerns" href="#concerns">♢   Player concerns</a>
+</nav><div class="nav-heading second-heading">MANAGEMENT</div><nav class="nav">
+<a class="nav-link" data-screen="invitations" href="#invitations">✉   Invitations</a>
+<a class="nav-link hidden" id="membersNav" data-screen="members" href="#members">♙   Members</a>
+<a class="nav-link" data-screen="settings" href="#settings">⚙   Settings</a></nav>
+
+
+<div class="sidebar-footer"><div class="avatar avatar-small" id="sidebarAvatar">EH</div><div><strong id="sidebarName">Not signed in</strong><small id="sidebarRole">Clerk authentication</small></div></div>
+</aside>
+<div class="main-column">
+<header class="topbar"><div class="top-left"><button aria-label="Open navigation" class="icon-btn mobile-menu" id="menuButton" aria-expanded="false" aria-controls="sidebar" type="button"><svg aria-hidden="true" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button><span class="breadcrumb">Workspace</span><span class="breadcrumb-slash">/</span><strong id="breadcrumbCurrent">Overview</strong></div><div class="top-actions"><span class="online-label" id="authStatus">Connecting to Clerk…</span><button class="eh-btn tiny hidden" id="logout" type="button">Sign out</button></div></header>
+<main class="page-container" id="pageContent" tabindex="-1"><div aria-live="polite" class="eh-alert" id="notice" role="status">Connecting to authentication…</div>
+
+<section class="hidden" id="signed">
+<section data-panel="dashboard"><article id="waitingForTeam" class="eh-panel hidden" style="margin-bottom:20px"><h2>Welcome to EsportsHub</h2><p>You are registered as a player. An administrator can assign your team, or you can accept an invitation below.</p><form id="dashboardInviteForm"><label for="dashboardInviteToken">Invitation link or token</label><input id="dashboardInviteToken" autocomplete="off" required placeholder="Paste an invitation (optional)"><button class="eh-btn" type="submit">Review invitation</button></form></article><div class="eh-heading"><span class="eh-kicker">ORGANIZATION OVERVIEW</span><h1>Good to see you, <span id="welcome">member</span></h1><p id="roles"></p></div><div class="eh-stats"><div class="eh-panel"><small>Assigned games</small><strong id="statGames">0</strong></div><div class="eh-panel"><small>Accessible teams</small><strong id="statTeams">0</strong></div><div class="eh-panel"><small>Role</small><strong id="statRole">—</strong></div></div><div class="eh-grid two"><article class="eh-panel"><h2>My games</h2><div id="games"></div></article><article class="eh-panel"><h2>My teams</h2><div id="teams"></div></article></div></section>
+<section class="hidden" data-panel="teams"><div class="eh-heading"><span class="eh-kicker">ROSTERS &amp; MANAGEMENT</span><h1>Teams</h1><p>Select a team to view its members and manage club activity.</p></div><div class="eh-grid two"><article class="eh-panel"><h2>Team selection</h2><div id="teamsMirror"></div></article><article class="eh-panel"><h2>Manage organization</h2><form class="hidden" id="gameForm"><h3>Create a game</h3><input name="name" placeholder="Game name" required=""/><button class="eh-btn">Create game</button></form><form class="hidden" id="teamForm"><h3>Create a team</h3><select id="createTeamGame" name="gameId"></select><input name="name" placeholder="Team name" required=""/><textarea name="description" placeholder="Description"></textarea><button class="eh-btn">Create team</button></form></article></div><article class="eh-panel" id="selected" style="margin-top:18px"><h2 id="teamTitle">Select a team</h2><p class="eh-muted" id="teamDesc">Choose a team to see its roster.</p><h3>Roster</h3><div id="members"></div></article></section>
+<section class="hidden" data-panel="schedule"><div class="eh-heading"><span class="eh-kicker">TEAM OPERATIONS</span><h1>Schedule</h1><p>Practices, scrims, matches and events for your selected team.</p></div><article class="eh-panel"><p class="eh-selected"></p><div id="events"></div><form class="hidden" id="eventForm"><h3>Schedule an event</h3><select name="type"><option value="practice">Practice</option><option value="scrim">Scrim</option><option value="match">Match</option><option value="event">Event</option></select><input name="title" placeholder="Event title" required=""/><input name="opponent" placeholder="Opponent (optional)"/><input name="startsAt" required="" type="datetime-local"/><textarea name="notes" placeholder="Notes"></textarea><button class="eh-btn">Schedule event</button></form></article></section>
+<section class="hidden" data-panel="availability"><div class="eh-heading"><span class="eh-kicker">WEEKLY PLANNING</span><h1>Availability</h1><p>Click or drag to mark available half-hour blocks. The grid saves to Turso.</p></div><article class="eh-panel"><p class="eh-selected"></p><form id="availabilityForm"><div class="eh-row"><strong>Your weekly availability</strong><button class="eh-btn" type="submit">Save availability</button></div><div class="eh-week-wrap"><div aria-label="Weekly availability by 30 minute slot" class="eh-week-grid" id="weekGrid" role="group"></div></div><textarea aria-label="Selected slots" class="hidden" name="slots"></textarea><p class="eh-muted">Each row is 30 minutes. Week starts Monday. Colored cells are available.</p></form></article></section>
+<section class="hidden" data-panel="reports"><div class="eh-heading"><span class="eh-kicker">TEAM KNOWLEDGE</span><h1>Scrim &amp; VOD reports</h1><p>Reports are shared with everyone authorized for the selected team.</p></div><article class="eh-panel"><p class="eh-selected"></p><div id="reports"></div><form class="hidden" id="reportForm"><h3>Publish a team report</h3><select name="type"><option value="scrim">Scrim</option><option value="vod">VOD review</option><option value="match">Match</option><option value="practice">Practice</option></select><input name="title" placeholder="Report title" required=""/><textarea name="content" placeholder="Team-visible notes" required=""></textarea><button class="eh-btn">Publish report</button></form></article></section>
+<section class="hidden" data-panel="concerns"><div class="eh-heading"><span class="eh-kicker">PRIVATE COMMUNICATION</span><h1>Player concerns</h1><p>Submissions are visible only to authorized game managers and administrators.</p></div><div class="eh-grid two"><article class="eh-panel"><h2>Submit a concern</h2><form id="concernForm"><textarea name="details" placeholder="Description" required=""></textarea><button class="eh-btn">Submit privately</button></form></article><article class="eh-panel hidden" id="review"><h2>Manager review</h2><div id="concerns"></div></article></div><p class="eh-muted">During testing, avoid including sensitive real-world information.</p></section>
+<section class="hidden" data-panel="invitations"><div class="eh-heading"><span class="eh-kicker">ACCESS MANAGEMENT</span><h1>Invite members</h1><p>Issue role-scoped invitations with a 72-hour expiration. Player invitations can be used by multiple people.</p></div><article class="eh-panel" id="staff"><form id="inviteForm"><label>Role<select name="role"><option value="player">Player</option><option value="captain">Captain</option><option value="game_manager">Game Manager</option><option value="admin">Administrator</option></select></label><label>Game<select id="inviteGame" name="gameId"></select></label><label>Team<select id="inviteTeam" name="teamId"></select></label><label>Maximum players per invite<input name="maxUses" type="number" min="1" max="100" step="1" value="1" required><small>Applies to player invitations. Other roles remain single-use.</small></label><button class="eh-btn">Create invitation</button></form><div id="inviteResult"></div></article></section>
+<section class="hidden" data-panel="members"><div class="eh-heading"><span class="eh-kicker">MEMBER MANAGEMENT</span><h1>Members</h1><p>Assign players to teams or change an existing role. Only administrators can make these changes.</p></div><div class="eh-grid two"><article class="eh-panel"><div class="eh-row"><h2>Registered members</h2><button id="reloadMembers" class="eh-btn" type="button">Refresh</button></div><div id="memberDirectory"></div></article><article class="eh-panel"><h2>Manage assignment</h2><form id="memberForm"><label>Member<select id="memberUser" required></select></label><label>Assignment to edit<select id="memberAssignment"></select></label><label>Role<select id="memberRole"><option value="player">Player</option><option value="captain">Captain</option><option value="team_manager">Team Manager</option><option value="game_manager">Game Manager</option><option value="admin">Administrator</option></select></label><label id="memberTeamField">Team<select id="memberTeam"></select></label><label id="memberGameField">Game<select id="memberGame"></select></label><p class="eh-muted">Editing replaces only the selected assignment. Add another assignment to keep existing roles. Team managers manage their team; game managers oversee every team in their game.</p><button id="saveMember" class="eh-btn" type="submit">Save assignment</button></form></article></div></section><section class="hidden" data-panel="settings"><div class="eh-heading"><span class="eh-kicker">WORKSPACE</span><h1>Settings</h1></div><article class="eh-panel" style="margin-bottom:16px"><h2>Your profile</h2><p class="eh-muted">Signed in as <span id="pfEmail"></span></p><form id="profileForm"><div class="eh-grid two"><label>First name<input id="pfFirst" autocomplete="given-name" maxlength="64"/></label><label>Last name<input id="pfLast" autocomplete="family-name" maxlength="64"/></label></div><label>Username<input id="pfUser" autocomplete="username" maxlength="64" placeholder="e.g. frankie_rose"/></label><label>Profile picture<input id="pfAvatar" type="file" accept="image/*"/></label><label>Main game<select id="pfMain"><option value="">None</option></select></label><h3>In-game usernames</h3><div id="pfGames" class="eh-muted">No games available yet.</div><label>Banner<select id="pfBanner"><option value="preset:purple">Purple</option><option value="preset:sunset">Sunset</option><option value="preset:ocean">Ocean</option><option value="preset:forest">Forest</option><option value="preset:night">Night</option><option value="custom">Custom image URL</option></select></label><label id="pfBannerUrlWrap" class="hidden">Banner image URL (https)<input id="pfBannerUrl" type="url" placeholder="https://..." maxlength="500"/></label><div id="pfBannerPreview" class="eh-banner" aria-hidden="true"></div><button class="eh-btn" id="pfSave" type="submit">Save profile</button> <button class="eh-btn" id="pfManage" type="button">Manage email &amp; password</button><p id="pfStatus" class="eh-muted" role="status" aria-live="polite"></p></form></article><article class="eh-panel"><h2>Backend connection</h2><p class="eh-muted">Configured Cloudflare Workers endpoint. Never enter Turso or Clerk secret keys here.</p><label>Worker API URL<input autocomplete="url" id="api"/></label><button class="eh-btn" id="saveApi">Save endpoint</button><h3>Account</h3><p>Authentication is managed through Clerk. Role assignments come from Turso.</p></article></section>
+</section></main>
+</div>
+</div>
+<div class="mobile-overlay" id="mobileOverlay" aria-hidden="true"></div>
+<div aria-live="polite" class="toast" id="toast" role="status"></div>
+<dialog id="profileDialog" class="eh-dialog eh-pd"><div id="pdBanner" class="eh-pd-banner"></div><div id="pdAvatar" class="eh-pd-avatar"></div><div class="eh-pd-body"><h2 id="pdName"></h2><p id="pdMeta" class="eh-pd-meta"></p><span id="pdRole" class="eh-pd-role"></span><div class="eh-pd-section" id="pdMainWrap"><h4>Main game</h4><div id="pdMain"></div></div><div class="eh-pd-section"><h4>In-game usernames</h4><div id="pdGames"></div></div><p id="pdNote" class="eh-muted"></p><button class="eh-btn" id="pdClose" type="button">Close</button></div></dialog><script src="js/routing.js?v=20261013-5"></script><script crossorigin="anonymous" defer="" src="https://amazed-insect-6169.clerk.accounts.dev/npm/@clerk/ui@1/dist/ui.browser.js"></script><script crossorigin="anonymous" data-clerk-publishable-key="pk_test_YW1hemVkLWluc2VjdC02MTY5LmNsZXJrLmFjY291bnRzLmRldiQ" defer="" src="https://amazed-insect-6169.clerk.accounts.dev/npm/@clerk/clerk-js@6/dist/clerk.browser.js"></script><script defer="" src="js/portal.js?v=20261013-5"></script></body>
+</html>
