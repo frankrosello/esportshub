@@ -229,16 +229,15 @@ async function renderAuth(){
 window.addEventListener('load',async()=>{try{if(!window.Clerk)throw Error('Clerk script did not load. Reload the page or check browser content blocking.');await window.Clerk.load({...routes.clerkOptions(authReturnUrl(),pendingInvite),signInForceRedirectUrl:authReturnUrl(),signInFallbackRedirectUrl:authReturnUrl(),signUpForceRedirectUrl:authReturnUrl(),signUpFallbackRedirectUrl:authReturnUrl(),...(window.__internal_ClerkUICtor?{ui:{ClerkUI:window.__internal_ClerkUICtor}}:{})});s.clerkReady=true;window.Clerk.addListener(()=>{void renderAuth().catch(e=>{showGuest(e.message);});});await renderAuth();}catch(e){$('signInLoading').textContent='Unable to load sign-in: '+e.message;$('signUpLoading').textContent='Unable to load sign-up: '+e.message;notify('Unable to start Clerk: '+e.message,true);showGuest(e.message);}});
 
 // Profile editing (name, username, picture) through Clerk.
-function fillProfileBasics(){const u=window.Clerk?.user;if(!u)return;$('pfFirst').value=u.firstName||'';$('pfLast').value=u.lastName||'';$('pfUser').value=u.username||'';$('pfEmail').textContent=u.primaryEmailAddress?.emailAddress||'';}
+function fillProfileBasics(){const u=window.Clerk?.user;if(!u)return;$('pfFirst').value=u.firstName||'';$('pfLast').value=u.lastName||'';$('pfUser').value='';$('pfEmail').textContent=u.primaryEmailAddress?.emailAddress||'';}
 $('profileForm').addEventListener('submit',async e=>{
   e.preventDefault();const u=window.Clerk?.user;if(!u)return;
   const btn=$('pfSave'),status=$('pfStatus');btn.disabled=true;status.textContent='Saving…';
   try{
     const body={firstName:$('pfFirst').value.trim(),lastName:$('pfLast').value.trim()};
-    const un=$('pfUser').value.trim();if(un!==(u.username||''))body.username=un;
     await u.update(body);
-    await saveAppProfile();
     const f=$('pfAvatar').files[0];if(f){await u.setProfileImage({file:f});$('pfAvatar').value='';}
+    await saveAppProfile();
     const full=[u.firstName,u.lastName].filter(Boolean).join(' ')||u.username||'Member';
     $('sidebarName').textContent=full;$('welcome').textContent=full.split(' ')[0];
     $('sidebarAvatar').textContent=full.split(' ').slice(0,2).map(x=>x[0]).join('').toUpperCase();
@@ -265,7 +264,7 @@ async function fillProfile(){
   $('pfGames').innerHTML=games.length?games.map(g=>`<label>${escapeHtml(g.name)}<input data-game="${escapeHtml(g.id)}" maxlength="64" placeholder="Username in ${escapeHtml(g.name)}"/></label>`).join(''):'No games available yet.';
   let prof={};
   try{prof=await api('/profile/'+encodeURIComponent(s.me.user.id));}catch{}
-  $('pfMain').value=prof.main_game_id||'';
+  $('pfMain').value=prof.main_game_id||'';$('pfUser').value=prof.username||'';
   (prof.game_usernames||[]).forEach(x=>{const i=$('pfGames').querySelector(`[data-game="${CSS.escape(String(x.game_id))}"]`);if(i)i.value=x.username;});
   const b=prof.banner||'preset:purple';
   if(b.startsWith('https://')){$('pfBanner').value='custom';$('pfBannerUrl').value=b;}else $('pfBanner').value=BANNERS[b.slice(7)]?b:'preset:purple';
@@ -273,26 +272,42 @@ async function fillProfile(){
 }
 async function saveAppProfile(){
   const game_usernames={};$('pfGames').querySelectorAll('input[data-game]').forEach(i=>{const v=i.value.trim();if(v)game_usernames[i.dataset.game]=v;});
-  try{await api('/me/profile','PUT',{main_game_id:$('pfMain').value||null,banner:bannerValue()||'preset:purple',game_usernames});}
+  try{await api('/me/profile','PUT',{username:$('pfUser').value.trim(),main_game_id:$('pfMain').value||null,banner:bannerValue()||'preset:purple',game_usernames});}
   catch(e){throw Error('Name saved, but game profile could not be saved: '+e.message);}
 }
-// ---- View another member's profile ----
+// ---- View another member's profile (Discord-style card) ----
+const PRESET_COLORS={purple:'#6326a6',sunset:'#f12711',ocean:'#1c92d2',forest:'#2f7a5a',night:'#2c5364'};
+function sampleColor(url){return new Promise(res=>{if(!url)return res(null);const img=new Image();img.crossOrigin='anonymous';img.onload=()=>{try{const c=document.createElement('canvas');c.width=c.height=8;const x=c.getContext('2d');x.drawImage(img,0,0,8,8);const d=x.getImageData(0,0,8,8).data;let r=0,g=0,b=0,n=0;for(let i=0;i<d.length;i+=4){r+=d[i];g+=d[i+1];b+=d[i+2];n++;}res(`rgb(${r/n|0},${g/n|0},${b/n|0})`);}catch{res(null);}};img.onerror=()=>res(null);img.src=url;});}
+async function profileColor(banner,avatar){
+  if(typeof banner==='string'&&banner.startsWith('preset:'))return PRESET_COLORS[banner.slice(7)]||PRESET_COLORS.purple;
+  return (await sampleColor(banner))||(await sampleColor(avatar))||PRESET_COLORS.purple;
+}
 const pd=$('profileDialog');$('pdClose').onclick=()=>pd.close();
 pd.addEventListener('click',e=>{if(e.target===pd)pd.close();});
+function setAvatar(url,name){
+  const el=$('pdAvatar');el.replaceChildren();
+  if(typeof url==='string'&&url.startsWith('https://')){const i=document.createElement('img');i.alt='';i.src=url;i.onerror=()=>{el.replaceChildren(document.createTextNode(initials));};el.append(i);}
+  const initials=(name||'?').split(' ').slice(0,2).map(x=>x[0]).join('').toUpperCase();
+  if(!el.firstChild)el.textContent=initials;
+}
 $('members').addEventListener('click',async e=>{
   const btn=e.target.closest('[data-profile]');if(!btn)return;
   const {profile:uid,name,role}=btn.dataset;
-  $('pdName').textContent=name;$('pdMeta').textContent=role.replace('_',' ');$('pdMain').textContent='';$('pdGames').textContent='';$('pdNote').textContent='Loading…';applyBanner($('pdBanner'),'preset:purple');
+  pd.style.removeProperty('--pc');
+  $('pdName').textContent=name;$('pdMeta').textContent='';$('pdRole').textContent=role.replace('_',' ');
+  $('pdMain').textContent='';$('pdGames').textContent='';$('pdNote').textContent='Loading…';
+  applyBanner($('pdBanner'),'preset:purple');setAvatar(null,name);$('pdMainWrap').classList.add('hidden');
   pd.showModal();
   try{
     const p=await api('/profile/'+encodeURIComponent(uid));
     $('pdName').textContent=p.name||name;
-    $('pdMeta').textContent=[p.username?'@'+p.username:'',role.replace('_',' ')].filter(Boolean).join(' · ');
-    applyBanner($('pdBanner'),p.banner);
+    $('pdMeta').textContent=p.username?'@'+p.username:'';
+    applyBanner($('pdBanner'),p.banner);setAvatar(p.image_url,p.name||name);
     const main=(s.games.find(g=>g.id===p.main_game_id)||{}).name||p.main_game_name;
-    $('pdMain').textContent=main?'Main game: '+main:'';
-    const list=(p.game_usernames||[]).map(x=>`<div class="eh-ign"><span>${escapeHtml(x.game_name||(s.games.find(g=>g.id===x.game_id)||{}).name||'Game')}</span><strong>${escapeHtml(x.username)}</strong></div>`).join('');
-    $('pdGames').innerHTML=list||'<span class="eh-muted">No in-game usernames added.</span>';$('pdNote').textContent='';
+    $('pdMain').textContent=main||'';$('pdMainWrap').classList.toggle('hidden',!main);
+    const list=(p.game_usernames||[]).map(x=>`<div class="eh-ign"><span>${escapeHtml(x.game_name||'Game')}</span><strong>${escapeHtml(x.username)}</strong></div>`).join('');
+    $('pdGames').innerHTML=list||'<span class="eh-muted">None added yet.</span>';$('pdNote').textContent='';
+    pd.style.setProperty('--pc',await profileColor(p.banner,p.image_url));
   }catch(err){$('pdNote').textContent='Could not load full profile: '+err.message;}
 });
 // ---- Admin: reorder teams ----
