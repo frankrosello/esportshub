@@ -393,7 +393,7 @@ function schCard(e){
   c.append(top,schEl('strong','',e.title));
   if(e.opponent)c.append(schEl('div','eh-muted','vs '+e.opponent));
   if(e.notes)c.append(schEl('p','',e.notes));
-  if(s.team&&managesTeam(s.team)){const edit=schEl('button','eh-btn tiny','Edit event');edit.type='button';edit.onclick=()=>openTeamEditor('events',e);c.append(edit);}
+  if(s.team&&managesTeam(s.team)){const edit=schEl('button','eh-btn tiny','Edit event');edit.type='button';edit.onclick=()=>openTeamEditor('events',e);c.append(edit);const remove=schEl('button','eh-btn tiny eh-delete-event','Delete event');remove.type='button';remove.onclick=()=>deleteTeamEvent(e,remove);c.append(remove);}
   return c;
 }
 function schList(box,evs){
@@ -565,4 +565,12 @@ function renderNeccSettings(box){
  form.onsubmit=async e=>{e.preventDefault();save.disabled=true;try{await api(url,'PUT',{url:input.value.trim(),enabled:enabled.checked});await load();}catch(e){status.textContent=e.message;}finally{save.disabled=false;}};
  sync.onclick=async()=>{sync.disabled=true;status.textContent='Syncing NECC matches…';try{const r=await api(url+'/sync','POST',{});if(s.team?.id===teamId)await selectTeam(s.team);notify(`NECC sync complete: ${r.matched} matches processed.`);}catch(e){status.textContent=e.message;}finally{sync.disabled=false;}};
  void load();
+}
+
+async function deleteTeamEvent(event,button){
+ if(!s.team||!managesTeam(s.team))return;const teamId=s.team.id;
+ if(!window.confirm(`Delete “${event.title}”? This cannot be undone. Imported NECC matches will stay deleted after syncing.`))return;
+ button.disabled=true;
+ try{await api(`/teams/${encodeURIComponent(teamId)}/events/${encodeURIComponent(event.id)}`,'DELETE');if(s.team?.id===teamId)await selectTeam(s.team);notify('Event deleted.');}
+ catch(e){notify('Could not delete event: '+e.message,true);}finally{button.disabled=false;}
 }
