@@ -67,8 +67,22 @@ async function api(path,method='GET',body){const token=await window.Clerk?.sessi
 function listOptions(el,items,label){el.innerHTML=items.map(t=>`<option value="${escapeHtml(t.id)}">${escapeHtml(label(t))}</option>`).join('');}
 function selectedLabel(){return s.team?`${s.team.game_name} / ${s.team.name}`:'Select a team under Teams first';}
 function go(page){const screens=['dashboard','teams','schedule','availability','reports','concerns','invitations','members','settings','matchsync'];if(!screens.includes(page))page='dashboard';if(!s.me&&page!=='dashboard')page='dashboard';if(page==='members'&&!admin())page='dashboard';if(page==='matchsync'&&!canViewMatchSync())page='dashboard';if(page==='matchsync')renderMatchSyncPage();document.querySelectorAll('[data-panel]').forEach(x=>x.classList.toggle('hidden',x.dataset.panel!==page));document.querySelectorAll('[data-screen]').forEach(x=>x.classList.toggle('active',x.dataset.screen===page));$('breadcrumbCurrent').textContent=({dashboard:'Overview',teams:'Teams',schedule:'Schedule',availability:'Availability',reports:'Reports',concerns:'Player concerns',invitations:'Invitations',members:'Members',settings:'Settings',matchsync:'Match Sync'})[page];document.querySelectorAll('.eh-selected').forEach(x=>x.textContent=selectedLabel());const destination=new URL(routes.home());destination.search=new URL(location.href).search;destination.hash=page;history.replaceState(null,'',destination.href);setMobileNav(false);}
-function renderTeams(){const elements=[$('teamsMirror')];elements.forEach(el=>{el.replaceChildren();if(!s.teams.length){el.textContent='No assigned team yet. Your captain or manager can ask an administrator to assign you.';return;}s.teams.forEach(t=>{const b=document.createElement('button');b.type='button';b.className='eh-pick'+(s.team?.id===t.id?' active':'');b.textContent=`${t.name} · ${t.game_name}`;b.addEventListener('click',async()=>{try{await selectTeam(t);go('teams');notify(`Viewing ${t.name}`);}catch(e){notify(e.message,true);}});if(admin()&&s.teams.length>1){const row=document.createElement('div');row.className='eh-reorder';row.append(b);[['▲','Move up',-1],['▼','Move down',1]].forEach(([ic,label,d])=>{const m=document.createElement('button');m.type='button';m.className='eh-btn';m.textContent=ic;m.setAttribute('aria-label',label+' '+t.name);m.addEventListener('click',()=>moveTeam(t.id,d));row.append(m);});el.append(row);}else el.append(b);});});}
-async function refresh(){s.scheduleRequest=(s.scheduleRequest||0)+1;s.scheduleAllEvents=null;s.scheduleLoading=false;const me=await api('/me');assignedRoles=me.roles||[];if(activeViewRole&&!assignedRoles.some(m=>m.role===activeViewRole))activeViewRole='';renderRoleSelector();const [games,teams]=await Promise.all([api('/games'),api('/teams')]);me.roles=activeViewRole?assignedRoles.filter(m=>m.role===activeViewRole):assignedRoles;s.me=me;s.games=games;s.teams=teams;$('loginPage').classList.add('hidden');$('dashboardShell').classList.remove('hidden');$('guest').classList.add('hidden');$('signed').classList.remove('hidden');$('logout').classList.remove('hidden');$('authStatus').textContent='Connected';updateDashboardGreeting();$('sidebarName').textContent=me.user.name;$('sidebarRole').textContent=(activeViewRole?'Viewing as ':'')+(me.roles.map(m=>roleLabel(m.role)).filter((v,i,a)=>a.indexOf(v)===i).join(' · ')||'Member');$('sidebarAvatar').textContent=me.user.name.split(' ').slice(0,2).map(x=>x[0]).join('').toUpperCase();$('roles').textContent=me.roles.map(m=>roleLabel(m.role)+(m.game_name?` · ${m.game_name}`:'')).join(' · ');renderTeams();$('gameForm').classList.toggle('hidden',!admin());const managed=games.filter(g=>managesGame(g.id));$('teamForm').classList.toggle('hidden',!managed.length);const organizationCard=$('teamForm').closest('article');const canManageOrganization=admin()||managed.length>0;organizationCard.classList.toggle('hidden',!canManageOrganization);organizationCard.parentElement.style.gridTemplateColumns=canManageOrganization?'':'minmax(0,1fr)';listOptions($('createTeamGame'),managed,g=>g.name);listOptions($('inviteGame'),games,g=>g.name);listOptions($('inviteTeam'),teams,t=>t.name);$('staff').classList.toggle('hidden',!admin()&&!teams.some(managesTeam));document.querySelector('[data-screen="invitations"]').classList.toggle('hidden',!admin()&&!teams.some(managesTeam));$('membersNav').classList.toggle('hidden',!admin());$('matchSyncNav').classList.toggle('hidden',!canViewMatchSync());$('waitingForTeam').classList.toggle('hidden',!me.roles.some(m=>m.role==='player'&&!m.game_id&&!m.team_id));if(admin())await loadMemberDirectory();const current=teams.find(t=>t.id===s.team?.id)||teams[0];if(current)await selectTeam(current);else clearTeam();go((location.hash||'#dashboard').slice(1));renderDashboard();fillProfile();notify('Connected securely through Clerk.');}
+function renderTeams(){
+ const el=$('teamsMirror');el.replaceChildren();
+ if(!s.teams.length){el.textContent='No assigned team yet. Your captain or manager can ask an administrator to assign you.';return;}
+ if(admin()&&s.teams.length>1)el.append(schEl('p','eh-muted eh-sort-hint','Drag a team by its handle to arrange the list. Keyboard: focus the handle and use Up or Down.'));
+ for(const team of s.teams){
+  const button=document.createElement('button');button.type='button';button.className='eh-pick'+(s.team?.id===team.id?' active':'');button.textContent=`${team.name} · ${team.game_name}`;
+  button.onclick=async()=>{try{await selectTeam(team);go('teams');notify(`Viewing ${team.name}`);}catch(error){notify(error.message,true);}};
+  if(admin()&&s.teams.length>1){const row=document.createElement('div');row.className='eh-team-sort-row';row.dataset.teamId=team.id;
+   const handle=document.createElement('button');handle.type='button';handle.className='eh-team-drag-handle';handle.textContent='⠿';handle.dataset.dragTeam=team.id;handle.disabled=!!s.teamOrderSaving;handle.setAttribute('aria-label',`Reorder ${team.name}. Drag, or use Up and Down arrow keys.`);
+   handle.onpointerdown=e=>beginTeamDrag(e,row,handle,el);
+   handle.onkeydown=async e=>{if(!['ArrowUp','ArrowDown'].includes(e.key)||s.teamOrderSaving)return;e.preventDefault();const index=s.teams.findIndex(t=>t.id===team.id),target=index+(e.key==='ArrowUp'?-1:1);if(target<0||target>=s.teams.length)return;const ids=s.teams.map(t=>t.id);ids.splice(index,1);ids.splice(target,0,team.id);await saveTeamArrangement(ids,team.id);};
+   row.append(handle,button);el.append(row);
+  }else el.append(button);
+ }
+}
+async function refresh(){s.scheduleRequest=(s.scheduleRequest||0)+1;s.scheduleAllEvents=null;s.scheduleLoading=false;const me=await api('/me');assignedRoles=me.roles||[];if(activeViewRole&&!assignedRoles.some(m=>m.role===activeViewRole))activeViewRole='';renderRoleSelector();const [games,teams]=await Promise.all([api('/games'),api('/teams')]);me.roles=activeViewRole?assignedRoles.filter(m=>m.role===activeViewRole):assignedRoles;s.me=me;s.games=games;s.teams=teams;if(me.user.profile_setup_complete===false){showProfileOnboarding();return;}$('loginPage').classList.add('hidden');$('dashboardShell').classList.remove('hidden');$('guest').classList.add('hidden');$('signed').classList.remove('hidden');$('logout').classList.remove('hidden');$('authStatus').textContent='Connected';updateDashboardGreeting();$('sidebarName').textContent=me.user.name;$('sidebarRole').textContent=(activeViewRole?'Viewing as ':'')+(me.roles.map(m=>roleLabel(m.role)).filter((v,i,a)=>a.indexOf(v)===i).join(' · ')||'Member');$('sidebarAvatar').textContent=me.user.name.split(' ').slice(0,2).map(x=>x[0]).join('').toUpperCase();$('roles').textContent=me.roles.map(m=>roleLabel(m.role)+(m.game_name?` · ${m.game_name}`:'')).join(' · ');renderTeams();$('gameForm').classList.toggle('hidden',!admin());const managed=games.filter(g=>managesGame(g.id));$('teamForm').classList.toggle('hidden',!managed.length);const organizationCard=$('teamForm').closest('article');const canManageOrganization=admin()||managed.length>0;organizationCard.classList.toggle('hidden',!canManageOrganization);organizationCard.parentElement.style.gridTemplateColumns=canManageOrganization?'':'minmax(0,1fr)';listOptions($('createTeamGame'),managed,g=>g.name);listOptions($('inviteGame'),games,g=>g.name);listOptions($('inviteTeam'),teams,t=>t.name);$('staff').classList.toggle('hidden',!admin()&&!teams.some(managesTeam));document.querySelector('[data-screen="invitations"]').classList.toggle('hidden',!admin()&&!teams.some(managesTeam));$('membersNav').classList.toggle('hidden',!admin());$('matchSyncNav').classList.toggle('hidden',!canViewMatchSync());$('waitingForTeam').classList.toggle('hidden',!me.roles.some(m=>m.role==='player'&&!m.game_id&&!m.team_id));if(admin())await loadMemberDirectory();renderDefaultTeamSettings();const current=chooseDashboardTeam(teams,s.team?.id,me.user.default_team_id);if(current)await selectTeam(current);else clearTeam();go((location.hash||'#dashboard').slice(1));renderDashboard();fillProfile();notify('Connected securely through Clerk.');}
 function clearTeam(){s.scheduleRequest=(s.scheduleRequest||0)+1;s.scheduleAllEvents=null;s.scheduleLoading=false;s.team=null;s.teamMembers=[];s.events=[];s.teamReports=[];s.teamAvailability=[];renderDashboard();$('selected').classList.add('hidden');['events','reports','members','concerns'].forEach(id=>$(id).textContent='Select a team to view this section.');['eventForm','reportForm','review'].forEach(id=>$(id).classList.add('hidden'));document.querySelectorAll('.eh-selected').forEach(x=>x.textContent=selectedLabel());}
 async function selectTeam(t){const [info,events,reports,availability]=await Promise.all([api(`/teams/${t.id}`),api(`/teams/${t.id}/events`),api(`/teams/${t.id}/reports`),api(`/teams/${t.id}/availability`)]);s.team=t;$('selected').classList.remove('hidden');$('teamTitle').textContent=`${t.name} · ${t.game_name}`;$('teamDesc').textContent=info.team.description||'No description';s.events=events;s.teamMembers=info.members||[];s.teamReports=reports||[];s.teamAvailability=Array.isArray(availability)?availability:(availability.members||availability.availability||[]);renderSchedule();renderRoster();renderDashboard();$('reports').innerHTML=reports.map(r=>`<div class="eh-item"><strong>${escapeHtml(r.title)}</strong><div class="eh-muted">${escapeHtml(r.type)} · ${escapeHtml(r.author||'')}</div><div class="eh-rich-notes">${formatNotes(r.content)}</div>${managesTeam(t)?`<button type="button" class="eh-btn tiny" data-edit-report="${escapeHtml(r.id)}">Edit report</button>`:''}</div>`).join('')||'No reports published.';$('eventForm').classList.toggle('hidden',!managesTeam(t));$('reportForm').classList.toggle('hidden',!managesTeam(t));$('review').classList.toggle('hidden',!managesGame(t.game_id));if(managesGame(t.game_id)){const concerns=await api(`/teams/${t.id}/concerns`);$('concerns').innerHTML=concerns.map(c=>`<div class="eh-item"><strong>${escapeHtml(c.status||'Open')}</strong> · ${escapeHtml(c.author)}<p>${escapeHtml(c.details)}</p></div>`).join('')||'No private concerns.';}const mine=Array.isArray(availability)?availability.find(x=>x.user_id===s.me.user.id)?.slots||[]:availability.slots||[];s.slots=new Set(mine.map(Number));s.avEditing=false;updateGrid();renderTeamAvailability();renderTeams();document.querySelectorAll('.eh-selected').forEach(x=>x.textContent=selectedLabel());}
 function form(id,fn){$(id).addEventListener('submit',async e=>{e.preventDefault();const element=e.currentTarget;const values=Object.fromEntries(new FormData(element).entries());try{await fn(values);element.reset();}catch(err){notify(err.message,true);}});}
@@ -185,7 +199,7 @@ function mountClerk(){
   $(signup?'signUpLoading':'signInLoading').textContent='';
  }catch(error){$(signup?'signUpLoading':'signInLoading').textContent='Unable to load authentication: '+error.message;}
 }
-function showGuest(msg){s.me=null;activeViewRole='';assignedRoles=[];renderRoleSelector();setAccountMenu(false);$('loginPage').classList.remove('hidden');$('dashboardShell').classList.add('hidden');$('guest').classList.remove('hidden');$('signed').classList.add('hidden');$('logout').classList.add('hidden');$('authStatus').textContent='Sign in required';$('sidebarName').textContent='Not signed in';$('sidebarRole').textContent='Clerk authentication';$('guestNotice').textContent=msg||'';$('accountRecovery').classList.toggle('hidden',!window.Clerk?.user||!msg);$('accountRecoveryStatus').textContent=msg||'';mountClerk();}
+function showGuest(msg){if($('onboardingDialog')?.open)$('onboardingDialog').close();if($('profileDialog')?.open)$('profileDialog').close();$('accountMiniProfile').replaceChildren();s.me=null;s.team=null;activeViewRole='';assignedRoles=[];renderRoleSelector();setAccountMenu(false);$('loginPage').classList.remove('hidden');$('dashboardShell').classList.add('hidden');$('guest').classList.remove('hidden');$('signed').classList.add('hidden');$('logout').classList.add('hidden');$('authStatus').textContent='Sign in required';$('sidebarName').textContent='Not signed in';$('sidebarRole').textContent='Clerk authentication';$('guestNotice').textContent=msg||'';$('accountRecovery').classList.toggle('hidden',!window.Clerk?.user||!msg);$('accountRecoveryStatus').textContent=msg||'';mountClerk();}
 function resetInvite(){pendingInvite='';inviteDetails=null;try{sessionStorage.removeItem(pendingKey);}catch{}const url=new URL(location.href);url.searchParams.delete('invite');history.replaceState(null,'',url.href);$('invitationCard').classList.add('hidden');}
 async function showInvitation(){
   showGuest();unmountClerk();$('authCard').classList.add('hidden');$('signUpCard').classList.add('hidden');$('invitationCard').classList.remove('hidden');$('inviteAuthButtons').classList.add('hidden');$('acceptInvite').classList.add('hidden');$('invitationStatus').textContent='Checking your invitation…';
@@ -289,8 +303,9 @@ $('profileForm').addEventListener('submit',async e=>{
 $('pfManage').onclick=()=>window.Clerk?.openUserProfile?.();
 
 // ---- Extended profile: main game, per-game usernames, banner ----
-const BANNERS={purple:'linear-gradient(135deg,#6326a6,#bd94ed)',sunset:'linear-gradient(135deg,#f12711,#f5af19)',ocean:'linear-gradient(135deg,#1c92d2,#2af598)',forest:'linear-gradient(135deg,#134e5e,#71b280)',night:'linear-gradient(135deg,#0f2027,#2c5364)'};
+const BANNERS={theme:'linear-gradient(135deg,#501d83,#b095de)',purple:'linear-gradient(135deg,#6326a6,#bd94ed)',sunset:'linear-gradient(135deg,#f12711,#f5af19)',ocean:'linear-gradient(135deg,#1c92d2,#2af598)',forest:'linear-gradient(135deg,#134e5e,#71b280)',night:'linear-gradient(135deg,#0f2027,#2c5364)'};
 function applyBanner(el,value){
+  el.dataset.themeBanner=String(value==='preset:theme');
   el.style.backgroundImage=BANNERS.purple;
   if(typeof value==='string'&&value.startsWith('preset:')&&BANNERS[value.slice(7)])el.style.backgroundImage=BANNERS[value.slice(7)];
 }
@@ -329,17 +344,17 @@ async function fillProfile(){
   $('pfGames').innerHTML=games.length?games.map(g=>`<label>${escapeHtml(g.name)}<input data-game="${escapeHtml(g.id)}" maxlength="64" placeholder="Username in ${escapeHtml(g.name)}"/></label>`).join(''):'No games available yet.';
   let prof={};
   try{prof=await api('/profile/'+encodeURIComponent(s.me.user.id));}catch{}
-  $('pfDashboardDisplay').value=s.me.user.dashboard_display||'name';$('pfDiscord').value=prof.discord_username||'';$('pfMain').value=prof.main_game_id||'';$('pfUser').value=prof.username||'';
+  fillCustomization(prof.customization);$('pfDashboardDisplay').value=s.me.user.dashboard_display||'name';$('pfDiscord').value=prof.discord_username||'';$('pfMain').value=prof.main_game_id||'';$('pfUser').value=prof.username||'';
   (prof.game_usernames||[]).forEach(x=>{const i=$('pfGames').querySelector(`[data-game="${CSS.escape(String(x.game_id))}"]`);if(i)i.value=x.username;});
   const b=prof.banner||'preset:purple';
   if(b.startsWith('https://')){$('pfBanner').value='preset:purple';}else if(b==='upload')$('pfBanner').value='upload';else $('pfBanner').value=BANNERS[b.slice(7)]?b:'preset:purple';
-  refreshBannerPreview();
+  refreshBannerPreview();renderProfilePreview();
 }
 async function saveAppProfile(){
   const game_usernames={};$('pfGames').querySelectorAll('input[data-game]').forEach(i=>{const v=i.value.trim();if(v)game_usernames[i.dataset.game]=v;});
-  try{await api('/me/profile','PUT',{dashboard_display:$('pfDashboardDisplay').value,discord_username:$('pfDiscord').value.trim(),username:$('pfUser').value.trim(),main_game_id:$('pfMain').value||null,banner:bannerValue()||'preset:purple',game_usernames});}
+  try{await api('/me/profile','PUT',{customization:customizationFields(),dashboard_display:$('pfDashboardDisplay').value,discord_username:$('pfDiscord').value.trim(),username:$('pfUser').value.trim(),main_game_id:$('pfMain').value||null,banner:bannerValue()||'preset:purple',game_usernames});}
   catch(e){throw Error('Game profile: '+e.message);}
-  if(s.me){s.me.user.username=$('pfUser').value.trim();s.me.user.dashboard_display=$('pfDashboardDisplay').value;updateDashboardGreeting();if(s.team)await selectTeam(s.team);if(admin())await loadMemberDirectory();}
+  loadedCustomization=customizationFields();$('pfStatusExpiry').value='never';if(s.me){s.me.user.username=$('pfUser').value.trim();s.me.user.dashboard_display=$('pfDashboardDisplay').value;updateDashboardGreeting();if(s.team)await selectTeam(s.team);if(admin())await loadMemberDirectory();}
 
 }
 // ---- View another member's profile (Discord-style card) ----
@@ -360,14 +375,14 @@ function setAvatar(url,name){
 }
 document.addEventListener('click',async e=>{
   const btn=e.target.closest('[data-profile]');if(!btn)return;
-  const {profile:uid,name,role}=btn.dataset;$('pdEdit').classList.toggle('hidden',uid!==s.me?.user?.id);
-  pd.style.removeProperty('--pc');
-  $('pdName').textContent=name;$('pdMeta').textContent='';$('pdRole').textContent=role.replace('_',' ');
+  const {profile:uid,name,role}=btn.dataset;pd.dataset.profileUser=uid;pd.classList.add('eh-profile-full');setAccountMenu(false);$('pdEdit').classList.toggle('hidden',uid!==s.me?.user?.id);
+  pd.style.removeProperty('--pc');showCustomization({name,customization:{}});
+  $('pdName').textContent=name;$('pdMeta').textContent='';$('pdRole').textContent=roleLabel(role);
   $('pdMain').textContent='';$('pdGames').textContent='';$('pdDiscord').textContent='';$('pdNote').textContent='Loading…';
   applyBanner($('pdBanner'),'preset:purple');setAvatar(null,name);$('pdMainWrap').classList.add('hidden');
   pd.showModal();
   try{
-    const p=await api('/profile/'+encodeURIComponent(uid));
+    const p=await api('/profile/'+encodeURIComponent(uid));if(!pd.open||pd.dataset.profileUser!==uid)return;
     $('pdName').textContent=p.name||name;
     $('pdMeta').textContent=p.username?'@'+p.username:'';$('pdDiscord').textContent=p.discord_username||'Not provided';
     const bUrl=await applyBannerFor($('pdBanner'),p.banner,uid);setAvatar(p.image_url,p.name||name);
@@ -375,15 +390,26 @@ document.addEventListener('click',async e=>{
     $('pdMain').textContent=main||'';$('pdMainWrap').classList.toggle('hidden',!main);
     const list=(p.game_usernames||[]).map(x=>`<div class="eh-ign"><span>${escapeHtml(x.game_name||'Game')}</span><strong>${escapeHtml(x.username)}</strong></div>`).join('');
     $('pdGames').innerHTML=list||'<span class="eh-muted">None added yet.</span>';$('pdNote').textContent='';
-    pd.style.setProperty('--pc',await profileColor(p.banner==='upload'?bUrl:p.banner,p.image_url));
+    pd.style.setProperty('--pc',await profileColor(p.banner==='upload'?bUrl:p.banner,p.image_url));showCustomization(p);
   }catch(err){$('pdNote').textContent='Could not load full profile: '+err.message;}
 });
 // ---- Admin: reorder teams ----
-async function moveTeam(id,d){
-  const i=s.teams.findIndex(t=>t.id===id),j=i+d;if(i<0||j<0||j>=s.teams.length)return;
-  const prev=[...s.teams];[s.teams[i],s.teams[j]]=[s.teams[j],s.teams[i]];renderTeams();
-  try{await api('/teams/order','PUT',{ids:s.teams.map(t=>t.id)});notify('Team order saved.');}
-  catch(e){s.teams=prev;renderTeams();notify('Could not save team order: '+e.message,true);}
+function arrangedTeams(teams,ids){if(ids.length!==teams.length||new Set(ids).size!==ids.length)return null;const byId=new Map(teams.map(t=>[t.id,t]));return ids.every(id=>byId.has(id))?ids.map(id=>byId.get(id)):null;}
+async function saveTeamArrangement(ids,focusId){
+ if(!admin()||s.teamOrderSaving)return;const ordered=arrangedTeams(s.teams,ids);if(!ordered)return;
+ const previous=[...s.teams];if(previous.every((t,i)=>t.id===ids[i]))return;s.teamOrderSaving=true;s.teams=ordered;renderTeams();
+ try{await api('/teams/order','PUT',{ids});renderDashboard();renderDefaultTeamSettings();notify('Team order saved.');}
+ catch(error){s.teams=previous;notify('Could not save team order: '+error.message,true);}
+ finally{s.teamOrderSaving=false;renderTeams();if(focusId){const handle=[...$('teamsMirror').querySelectorAll('[data-drag-team]')].find(h=>h.dataset.dragTeam===focusId);handle?.focus();}}
+}
+function beginTeamDrag(event,row,handle,list){
+ if(event.button!==0||!admin()||s.teamOrderSaving)return;event.preventDefault();
+ const original=s.teams.map(t=>t.id),id=event.pointerId;let moved=false;
+ handle.setPointerCapture(id);row.classList.add('eh-team-dragging');handle.setAttribute('aria-pressed','true');
+ const move=e=>{if(e.pointerId!==id)return;const target=document.elementFromPoint(e.clientX,e.clientY)?.closest('.eh-team-sort-row');if(!target||target===row||target.parentElement!==list)return;const rect=target.getBoundingClientRect();list.insertBefore(row,e.clientY<rect.top+rect.height/2?target:target.nextSibling);moved=true;};
+ const finish=e=>{if(e.pointerId!==id)return;handle.removeEventListener('pointermove',move);handle.removeEventListener('pointerup',finish);handle.removeEventListener('pointercancel',cancel);handle.removeEventListener('lostpointercapture',cancel);row.classList.remove('eh-team-dragging');handle.removeAttribute('aria-pressed');if(handle.hasPointerCapture(id))handle.releasePointerCapture(id);if(moved){const ids=[...list.querySelectorAll('.eh-team-sort-row')].map(r=>r.dataset.teamId);void saveTeamArrangement(ids,row.dataset.teamId);}};
+ const cancel=e=>{if(e.pointerId!==id)return;moved=false;finish(e);renderTeams();};
+ handle.addEventListener('pointermove',move);handle.addEventListener('pointerup',finish);handle.addEventListener('pointercancel',cancel);handle.addEventListener('lostpointercapture',cancel);
 }
 
 // ---- Schedule: date-sorted list + month calendar ----
@@ -617,7 +643,7 @@ async function deleteTeamEvent(event,button){
 function setAccountMenu(open,focusFirst=false){
  open=!!open&&!!s.me;const trigger=$('openSelfProfile'),menu=$('accountDropup');
  trigger.setAttribute('aria-expanded',String(open));menu.classList.toggle('hidden',!open);
- if(open&&focusFirst)$('accountProfile').focus();
+ if(open){void loadAccountMiniProfile();if(focusFirst)$('accountProfile').focus();}else{s.miniProfileRequest=(s.miniProfileRequest||0)+1;}
 }
 $('openSelfProfile').addEventListener('click',()=>setAccountMenu($('openSelfProfile').getAttribute('aria-expanded')!=='true'));
 $('openSelfProfile').addEventListener('keydown',e=>{if(e.key==='ArrowUp'||e.key==='ArrowDown'){e.preventDefault();setAccountMenu(true,true);}});
@@ -698,3 +724,59 @@ async function loadAllScheduleEvents(){
 
 function dashboardGreeting(user){return user?.dashboard_display==='username'&&user.username?user.username:user?.name||'member';}
 function updateDashboardGreeting(){const el=$('welcome');if(el)el.textContent=dashboardGreeting(s.me?.user);}
+
+function chooseDashboardTeam(teams,currentId,defaultId){return teams.find(t=>t.id===currentId)||teams.find(t=>t.id===defaultId)||teams[0];}
+function renderDefaultTeamSettings(){
+ const select=$('defaultDashboardTeam');select.replaceChildren();const automatic=document.createElement('option');automatic.value='';automatic.textContent='Automatic (first accessible team)';select.append(automatic);
+ for(const team of s.teams||[]){const option=document.createElement('option');option.value=team.id;option.textContent=`${team.name} · ${team.game_name}`;select.append(option);}
+ const saved=s.me?.user?.default_team_id;if(saved&&!s.teams.some(t=>t.id===saved)){const option=document.createElement('option');option.value=saved;option.textContent='Saved default (unavailable in this role)';option.disabled=true;select.append(option);}
+ select.value=saved||'';
+}
+$('defaultTeamForm').addEventListener('submit',async e=>{
+ e.preventDefault();const button=$('saveDefaultTeam'),status=$('defaultTeamStatus'),teamId=$('defaultDashboardTeam').value||null;button.disabled=true;status.textContent='Saving…';
+ try{const saved=await api('/me/default-team','PUT',{teamId});s.me.user.default_team_id=saved.default_team_id;status.textContent='Default dashboard team saved.';if(teamId){const team=s.teams.find(t=>t.id===teamId);if(team)await selectTeam(team);}}
+ catch(error){status.textContent=error.message;}finally{button.disabled=false;}
+});
+let loadedCustomization={};
+function customizationFields(){return {display_name:$('pfDisplayName').value.trim(),pronouns:$('pfPronouns').value.trim(),bio:$('pfBio').value,status_emoji:$('pfStatusEmoji').value,status_text:$('pfStatusText').value,presence:$('pfPresence').value,primary:$('pfColorPrimary').value,accent:$('pfColorAccent').value,theme:$('pfProfileTheme').value,frame:$('pfAvatarFrame').value,effect:$('pfEffect').value,banner_position:Number($('pfBannerPosition').value),status_expires_at:customStatusExpiration()};}
+function customStatusExpiration(){const mode=$('pfStatusExpiry').value;if(mode==='hour')return new Date(Date.now()+3600000).toISOString();if(mode==='day')return new Date(Date.now()+86400000).toISOString();if(loadedCustomization.status_text===$('pfStatusText').value&&loadedCustomization.status_emoji===$('pfStatusEmoji').value)return loadedCustomization.status_expires_at||null;return null;}
+function fillCustomization(value){loadedCustomization=value||{};const v=loadedCustomization;for(const [id,key,defaultValue] of [['pfDisplayName','display_name',''],['pfPronouns','pronouns',''],['pfBio','bio',''],['pfStatusEmoji','status_emoji',''],['pfStatusText','status_text',''],['pfPresence','presence','online'],['pfColorPrimary','primary','#501d83'],['pfColorAccent','accent','#b095de'],['pfProfileTheme','theme','auto'],['pfAvatarFrame','frame','none'],['pfEffect','effect','none'],['pfBannerPosition','banner_position',50]])$(id).value=v[key]??defaultValue;$('pfStatusExpiry').value='never';renderProfilePreview();}
+function applyProfileStyle(container,avatar,banner,v={}){
+ container.style.setProperty('--profile-primary',/^#[0-9a-f]{6}$/i.test(v.primary||'')?v.primary:'#501d83');container.style.setProperty('--profile-accent',/^#[0-9a-f]{6}$/i.test(v.accent||'')?v.accent:'#b095de');if(banner.dataset.themeBanner==='true')banner.style.backgroundImage=`linear-gradient(135deg,${container.style.getPropertyValue('--profile-primary')},${container.style.getPropertyValue('--profile-accent')})`;container.dataset.profileTheme=['light','dark'].includes(v.theme)?v.theme:'auto';container.dataset.profileEffect=['glow','shimmer'].includes(v.effect)?v.effect:'none';avatar.dataset.frame=['ring','double','hex'].includes(v.frame)?v.frame:'none';banner.style.backgroundPosition=`center ${Math.max(0,Math.min(100,Number(v.banner_position)||0))}%`;
+}
+function renderProfilePreview(){
+ const v=customizationFields(),box=$('profileLivePreview'),name=v.display_name||[$('pfFirst').value,$('pfLast').value].filter(Boolean).join(' ')||s.me?.user?.name||'Your profile';
+ box.innerHTML=`<div class="eh-preview-banner"></div><div class="eh-preview-body"><div class="eh-preview-avatar">${escapeHtml(name.split(/\s+/).slice(0,2).map(x=>x[0]).join(''))}</div><h3>${escapeHtml(name)}</h3><p class="eh-muted">${$('pfUser').value?'@'+escapeHtml($('pfUser').value):''}${v.pronouns?' · '+escapeHtml(v.pronouns):''}</p><span class="eh-presence-label">${escapeHtml(presenceLabel(v.presence))}</span><p>${escapeHtml(v.status_emoji)} ${escapeHtml(v.status_text)}</p><div class="eh-rich-notes">${formatNotes(v.bio)}</div></div>`;
+ const banner=box.querySelector('.eh-preview-banner'),avatar=box.querySelector('.eh-preview-avatar');applyBanner(banner,bannerValue());const existing=$('pfBannerPreview');if(bannerValue()==='upload'&&existing.style.backgroundImage)banner.style.backgroundImage=existing.style.backgroundImage;applyProfileStyle(box,avatar,banner,v);
+ const source=$('pfAvatarPreview').querySelector('img');if(source){const img=source.cloneNode();img.alt='';avatar.replaceChildren(img);}
+}
+function presenceLabel(value){return ({online:'Online',idle:'Away',dnd:'Do not disturb',invisible:'Offline'})[value]||'Online';}
+function showCustomization(profile){const v=profile.customization||{};const full=profile.name||'Member';$('pdName').textContent=v.display_name||full;$('pdFullName').textContent=v.display_name&&v.display_name!==full?full:'';$('pdPronouns').textContent=v.pronouns||'';$('pdStatus').textContent=[v.status_emoji,v.status_text].filter(Boolean).join(' ');$('pdPresence').textContent=presenceLabel(v.presence);$('pdBio').innerHTML=formatNotes(v.bio||'');$('pdBioWrap').classList.toggle('hidden',!v.bio);applyProfileStyle(pd,$('pdAvatar'),$('pdBanner'),v);}
+$('profileForm').addEventListener('input',()=>renderProfilePreview());$('profileForm').addEventListener('change',()=>renderProfilePreview());
+$('resetProfileStyle').onclick=()=>{for(const [id,value] of [['pfColorPrimary','#501d83'],['pfColorAccent','#b095de'],['pfProfileTheme','auto'],['pfAvatarFrame','none'],['pfEffect','none'],['pfBannerPosition','50']])$(id).value=value;renderProfilePreview();};
+
+async function loadAccountMiniProfile(){
+ if(!s.me)return;const uid=s.me.user.id,request=(s.miniProfileRequest||0)+1;s.miniProfileRequest=request;const box=$('accountMiniProfile');box.textContent='Loading your profile…';
+ try{const p=await api('/profile/'+encodeURIComponent(uid));if(s.miniProfileRequest!==request||s.me?.user.id!==uid)return;const v=p.customization||{},name=v.display_name||p.name||'Member';
+ box.innerHTML=`<div class="eh-mini-banner"></div><div class="eh-mini-body"><div class="eh-mini-avatar"></div><h3>${escapeHtml(name)}</h3><p class="eh-muted">${p.username?'@'+escapeHtml(p.username):escapeHtml(p.name||'')}${v.pronouns?' · '+escapeHtml(v.pronouns):''}</p><span class="eh-presence-label">${escapeHtml(presenceLabel(v.presence))}</span><p>${escapeHtml([v.status_emoji,v.status_text].filter(Boolean).join(' '))}</p>${v.bio?`<div class="eh-mini-bio">${formatNotes(v.bio)}</div>`:''}<small class="eh-muted">${escapeHtml([...new Set((s.me.roles||[]).map(m=>roleLabel(m.role)))].join(' · '))}</small></div>`;
+ const avatar=box.querySelector('.eh-mini-avatar'),banner=box.querySelector('.eh-mini-banner');avatar.textContent=name.split(/\s+/).slice(0,2).map(x=>x[0]).join('');if(trustedAvatar(p.image_url)){const image=document.createElement('img');image.alt='';image.referrerPolicy='no-referrer';image.src=p.image_url;image.onerror=()=>image.remove();avatar.append(image);}
+ await applyBannerFor(banner,p.banner,uid);if(s.miniProfileRequest!==request)return;applyProfileStyle(box,avatar,banner,v);
+ }catch(error){if(s.miniProfileRequest===request)box.textContent='Unable to load profile: '+error.message;}
+}
+
+function showProfileOnboarding(){
+ $('loginPage').classList.add('hidden');$('dashboardShell').classList.add('hidden');const dialog=$('onboardingDialog'),user=window.Clerk.user;if(dialog.open)return;
+ $('obFirst').value=user?.firstName||'';$('obLast').value=user?.lastName||'';$('obUsername').value=s.me?.user.username||'';$('onboardingStatus').textContent='';if(!dialog.open)dialog.showModal();
+}
+$('onboardingDialog').addEventListener('cancel',e=>e.preventDefault());
+$('onboardingForm').addEventListener('submit',async e=>{
+ e.preventDefault();const button=$('finishOnboarding'),status=$('onboardingStatus'),user=window.Clerk?.user;if(!user)return;button.disabled=true;status.textContent='Saving your profile…';
+ try{
+  await user.update({firstName:$('obFirst').value.trim(),lastName:$('obLast').value.trim()});
+  const existing=await api('/profile/'+encodeURIComponent(s.me.user.id));
+  await api('/me/profile','PUT',{username:$('obUsername').value.trim(),discord_username:$('obDiscord').value.trim(),banner:existing.banner||'preset:purple',main_game_id:existing.main_game_id||null,game_usernames:Object.fromEntries((existing.game_usernames||[]).map(g=>[g.game_id,g.username])),customization:{...(existing.customization||{}),pronouns:$('obPronouns').value.trim(),bio:$('obBio').value}});
+  await api('/me/onboarding/complete','POST',{});$('onboardingDialog').close();await refresh();notify('Your profile is ready. Welcome to EsportsHub!');
+ }catch(error){status.textContent=error.message;}finally{button.disabled=false;}
+});
+
+$('onboardingSignOut').onclick=async()=>{try{await window.Clerk.signOut({redirectUrl:signInReturnUrl});$('onboardingDialog').close();showGuest();}catch(error){$('onboardingStatus').textContent=error.message;}};
