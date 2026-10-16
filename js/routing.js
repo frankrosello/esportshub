@@ -1,6 +1,6 @@
 'use strict';
-// One base URL for every application entry point and authentication destination.
 (function () {
+  if(window.EsportsHubRoutes)return;
   const here = new URL(window.location.href);
   const root = here.hostname === 'frankrosello.github.io'
     ? new URL('https://frankrosello.github.io/esportshub/')
@@ -35,3 +35,4 @@
   window.EsportsHubRoutes=Object.freeze({root:root.href,home,clerkOptions,
     page:name=>new URL(name,root).href});
 })();
+
