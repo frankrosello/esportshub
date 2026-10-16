@@ -254,3 +254,5 @@ a:focus-visible,button:focus-visible,input:focus-visible,textarea:focus-visible,
 .eh-role-view{padding:10px 5px 14px}.eh-role-view label{display:block;font-size:11px;font-weight:600;color:var(--muted);margin-bottom:6px}.eh-role-view select{width:100%;border:1px solid var(--border);border-radius:7px;padding:9px;background:var(--surface-alt);color:var(--ink)}
 
 .eh-event-result{display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-top:1px solid var(--border);margin:12px 0;padding:12px 0}.eh-result-status{padding:4px 9px;border-radius:6px;background:var(--accent-bg);color:var(--accent);font-weight:700}.eh-result-link{text-decoration:underline;color:var(--accent)}
+
+.eh-result-sync-message{flex-basis:100%;font-size:12px;color:var(--muted);white-space:normal;overflow-wrap:anywhere}.eh-result-sync-message:empty{display:none}.eh-result-sync-error{color:var(--red)}
