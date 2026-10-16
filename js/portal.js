@@ -50,6 +50,8 @@ let activeViewRole='';let assignedRoles=[];
 const admin=()=>s.me?.roles.some(m=>m.role==='admin');
 const managesGame=id=>admin()||s.me?.roles.some(m=>m.role==='game_manager'&&m.game_id===id);
 const managesTeam=t=>managesGame(t.game_id)||s.me?.roles.some(m=>['captain','team_manager','coach'].includes(m.role)&&m.team_id===t.id);
+const canWriteReports=team=>!!team&&(managesTeam(team)||s.me?.roles.some(m=>m.role==='player'&&m.team_id===team.id));
+const canEditReport=(report,team)=>canWriteReports(team)&&(managesTeam(team)||report.can_edit===true||report.created_by===s.me?.user.id);
 const EASTERN_ZONE='America/New_York';
 function easternParts(value){return Object.fromEntries(new Intl.DateTimeFormat('en-US',{timeZone:EASTERN_ZONE,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date(value)).map(p=>[p.type,p.value]));}
 function easternDay(value){const p=easternParts(value);return `${p.year}-${p.month}-${p.day}`;}
@@ -64,17 +66,29 @@ function fromEasternInput(day,time){
 }
 const fmt=date=>{const d=new Date(date);return isNaN(d)?'Date unavailable':d.toLocaleString('en-US',{timeZone:EASTERN_ZONE,month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true,timeZoneName:'short'});};
 async function requestApi(path,method='GET',body){const token=await window.Clerk?.session?.getToken();if(!token)throw Error('Sign in with Clerk first');const r=await fetch(apiUrl(path),{method,redirect:'error',credentials:'omit',referrerPolicy:'no-referrer',headers:{Authorization:`Bearer ${token}`,...(activeViewRole&&path!=='/me'?{'X-View-Role':activeViewRole}:{}),...(body!==undefined?{'Content-Type':'application/json'}:{})},...(body!==undefined?{body:JSON.stringify(body)}:{})});const data=await r.json().catch(()=>({}));if(!r.ok)throw Object.assign(Error(data.error||`API request failed (${r.status})`),{status:r.status});return data;}
-// Share short-lived profile reads across roster avatars, cards, and settings.
+// Session-only profile cache: instant repeat opens and background revalidation.
 const profileReads=new Map();let profileCacheGeneration=0;
-function clearProfileReads(){profileCacheGeneration++;profileReads.clear();}
+const PROFILE_FRESH_MS=60000,PROFILE_MAX_AGE_MS=600000,PROFILE_CACHE_LIMIT=100;
+function profileScope(){return [window.Clerk?.user?.id||'',activeViewRole].join('|');}
+function clearProfileReads(){profileCacheGeneration++;profileReads.clear();clearProfileImages();}
+function profileCacheNotice(path,data,error){document.dispatchEvent(new CustomEvent('eh-profile-cache',{detail:{path,data,error,scope:profileScope()}}));}
+function profileCacheFetch(path,key,entry){
+ if(entry.pending)return entry.pending;
+ const generation=profileCacheGeneration;
+ const promise=requestApi(path).then(data=>{
+  if(generation===profileCacheGeneration&&profileReads.get(key)===entry){entry.data=data;entry.fetchedAt=Date.now();entry.expires=Date.now()+PROFILE_MAX_AGE_MS;profileCacheNotice(path,data,null);}
+  return data;
+ },error=>{if(generation===profileCacheGeneration&&profileReads.get(key)===entry){if([401,403,404].includes(error.status)){profileReads.delete(key);clearProfileImages();profileCacheNotice(path,null,error);}else if(!entry.data)profileReads.delete(key);}throw error;}).finally(()=>{if(entry.pending===promise)entry.pending=null;});
+ entry.pending=promise;return promise;
+}
 async function api(path,method='GET',body){
- if(method!=='GET'){if(path.startsWith('/me/'))clearProfileReads();try{return await requestApi(path,method,body);}finally{if(path.startsWith('/me/'))clearProfileReads();}}
+ if(method!=='GET'){const changesProfile=['/me/profile','/me/banner','/me/onboarding/complete'].includes(path);if(changesProfile)clearProfileReads();try{return await requestApi(path,method,body);}finally{if(changesProfile)clearProfileReads();}}
  if(!/^\/profile\/[^/]+$/.test(path))return requestApi(path,method,body);
- const key=[window.Clerk?.user?.id||'',activeViewRole,path].join('|'),cached=profileReads.get(key);
- if(cached&&(cached.pending||cached.expires>Date.now()))return cached.promise;
- const generation=profileCacheGeneration,entry={pending:true,expires:0};
- entry.promise=requestApi(path).then(data=>{entry.pending=false;entry.expires=Date.now()+15000;if(generation!==profileCacheGeneration&&profileReads.get(key)===entry)profileReads.delete(key);return data;},error=>{if(profileReads.get(key)===entry)profileReads.delete(key);throw error;});
- profileReads.set(key,entry);return entry.promise;
+ const key=profileScope()+'|'+path,now=Date.now();let entry=profileReads.get(key);
+ if(entry){profileReads.delete(key);profileReads.set(key,entry);if(entry.data&&entry.expires>now){if(now-entry.fetchedAt>=PROFILE_FRESH_MS)void profileCacheFetch(path,key,entry).catch(()=>{});return entry.data;}if(entry.pending)return entry.pending;}
+ entry={data:null,pending:null,fetchedAt:0,expires:0};profileReads.set(key,entry);
+ while(profileReads.size>PROFILE_CACHE_LIMIT)profileReads.delete(profileReads.keys().next().value);
+ return profileCacheFetch(path,key,entry);
 }
 
 function listOptions(el,items,label){el.innerHTML=items.map(t=>`<option value="${escapeHtml(t.id)}">${escapeHtml(label(t))}</option>`).join('');}
@@ -95,9 +109,9 @@ function renderTeams(){
   }else el.append(button);
  }
 }
-async function refresh(){s.scheduleRequest=(s.scheduleRequest||0)+1;s.scheduleAllEvents=null;s.scheduleLoading=false;const me=await api('/me');assignedRoles=me.roles||[];if(activeViewRole&&!assignedRoles.some(m=>m.role===activeViewRole))activeViewRole='';renderRoleSelector();const [games,teams]=await Promise.all([api('/games'),api('/teams')]);me.roles=activeViewRole?assignedRoles.filter(m=>m.role===activeViewRole):assignedRoles;s.me=me;s.games=games;s.teams=teams;startLivePresence();void refreshNotifications(true).catch(()=>{});if(me.user.profile_setup_complete===false){showProfileOnboarding();return;}$('loginPage').classList.add('hidden');$('dashboardShell').classList.remove('hidden');$('guest').classList.add('hidden');$('signed').classList.remove('hidden');$('logout').classList.remove('hidden');$('authStatus').textContent='Connected';updateDashboardGreeting();$('sidebarName').textContent=me.user.name;$('sidebarRole').textContent=(activeViewRole?'Viewing as ':'')+(me.roles.map(m=>roleLabel(m.role)).filter((v,i,a)=>a.indexOf(v)===i).join(' · ')||'Member');$('sidebarAvatar').textContent=me.user.name.split(' ').slice(0,2).map(x=>x[0]).join('').toUpperCase();$('roles').textContent=me.roles.map(m=>roleLabel(m.role)+(m.game_name?` · ${m.game_name}`:'')).join(' · ');renderTeams();$('gameForm').classList.toggle('hidden',!admin());const managed=games.filter(g=>managesGame(g.id));$('teamForm').classList.toggle('hidden',!managed.length);const organizationCard=$('teamForm').closest('article');const canManageOrganization=admin()||managed.length>0;organizationCard.classList.toggle('hidden',!canManageOrganization);organizationCard.parentElement.style.gridTemplateColumns=canManageOrganization?'':'minmax(0,1fr)';listOptions($('createTeamGame'),managed,g=>g.name);listOptions($('inviteGame'),games,g=>g.name);listOptions($('inviteTeam'),teams,t=>t.name);$('staff').classList.toggle('hidden',!admin()&&!teams.some(managesTeam));document.querySelector('[data-screen="invitations"]').classList.toggle('hidden',!admin()&&!teams.some(managesTeam));$('membersNav').classList.toggle('hidden',!admin());$('matchSyncNav').classList.toggle('hidden',!canViewMatchSync());$('waitingForTeam').classList.toggle('hidden',!me.roles.some(m=>m.role==='player'&&!m.game_id&&!m.team_id));if(admin())await loadMemberDirectory();renderDefaultTeamSettings();const current=chooseDashboardTeam(teams,s.team?.id,me.user.default_team_id);if(current)await selectTeam(current);else clearTeam();go((location.hash||'#dashboard').slice(1));renderDashboard();fillProfile();notify('Connected securely through Clerk.');}
+async function refresh(){s.scheduleRequest=(s.scheduleRequest||0)+1;s.scheduleAllEvents=null;s.scheduleLoading=false;const me=await api('/me');const accessKey=JSON.stringify([me.user.id,(me.roles||[]).map(m=>[m.role,m.team_id,m.game_id]).sort()]);if(s.profileAccessKey&&s.profileAccessKey!==accessKey){clearProfileReads();if($('profileDialog').open)$('profileDialog').close();setAccountMenu(false);}s.profileAccessKey=accessKey;assignedRoles=me.roles||[];if(activeViewRole&&!assignedRoles.some(m=>m.role===activeViewRole))activeViewRole='';renderRoleSelector();const [games,teams]=await Promise.all([api('/games'),api('/teams')]);me.roles=activeViewRole?assignedRoles.filter(m=>m.role===activeViewRole):assignedRoles;s.me=me;s.games=games;s.teams=teams;startLivePresence();void refreshNotifications(true).catch(()=>{});if(me.user.profile_setup_complete===false){showProfileOnboarding();return;}$('loginPage').classList.add('hidden');$('dashboardShell').classList.remove('hidden');$('guest').classList.add('hidden');$('signed').classList.remove('hidden');$('logout').classList.remove('hidden');$('authStatus').textContent='Connected';updateDashboardGreeting();$('sidebarName').textContent=me.user.name;$('sidebarRole').textContent=(activeViewRole?'Viewing as ':'')+(me.roles.map(m=>roleLabel(m.role)).filter((v,i,a)=>a.indexOf(v)===i).join(' · ')||'Member');$('sidebarAvatar').textContent=me.user.name.split(' ').slice(0,2).map(x=>x[0]).join('').toUpperCase();$('roles').textContent=me.roles.map(m=>roleLabel(m.role)+(m.game_name?` · ${m.game_name}`:'')).join(' · ');renderTeams();$('gameForm').classList.toggle('hidden',!admin());const managed=games.filter(g=>managesGame(g.id));$('teamForm').classList.toggle('hidden',!managed.length);const organizationCard=$('teamForm').closest('article');const canManageOrganization=admin()||managed.length>0;organizationCard.classList.toggle('hidden',!canManageOrganization);organizationCard.parentElement.style.gridTemplateColumns=canManageOrganization?'':'minmax(0,1fr)';listOptions($('createTeamGame'),managed,g=>g.name);listOptions($('inviteGame'),games,g=>g.name);listOptions($('inviteTeam'),teams,t=>t.name);$('staff').classList.toggle('hidden',!admin()&&!teams.some(managesTeam));document.querySelector('[data-screen="invitations"]').classList.toggle('hidden',!admin()&&!teams.some(managesTeam));$('membersNav').classList.toggle('hidden',!admin());$('matchSyncNav').classList.toggle('hidden',!canViewMatchSync());$('waitingForTeam').classList.toggle('hidden',!me.roles.some(m=>m.role==='player'&&!m.game_id&&!m.team_id));if(admin())await loadMemberDirectory();renderDefaultTeamSettings();const current=chooseDashboardTeam(teams,s.team?.id,me.user.default_team_id);if(current)await selectTeam(current);else clearTeam();go((location.hash||'#dashboard').slice(1));renderDashboard();fillProfile();notify('Connected securely through Clerk.');}
 function clearTeam(){s.scheduleRequest=(s.scheduleRequest||0)+1;s.scheduleAllEvents=null;s.scheduleLoading=false;s.team=null;s.teamMembers=[];s.events=[];s.teamReports=[];s.teamAvailability=[];s.slots=new Set();s.avEditing=false;renderTeamAvailability();$('reportComposer').classList.add('hidden');$('scheduleCreate').classList.add('hidden');renderDashboard();if($('practiceSuggestions'))$('practiceSuggestions').textContent='Select a team to find practice times.';$('selected').classList.add('hidden');['events','reports','members','concerns'].forEach(id=>$(id).textContent='Select a team to view this section.');['eventForm','reportForm','review'].forEach(id=>$(id).classList.add('hidden'));document.querySelectorAll('.eh-selected').forEach(x=>x.textContent=selectedLabel());}
-async function selectTeam(t){if(s.team?.id!==t.id){s.rosterQuery='';s.reportQuery='';}const [info,events,reports,availability]=await Promise.all([api(`/teams/${t.id}`),api(`/teams/${t.id}/events`),api(`/teams/${t.id}/reports`),api(`/teams/${t.id}/availability`)]);s.team=t;$('selected').classList.remove('hidden');$('teamTitle').textContent=`${t.name} · ${t.game_name}`;$('teamDesc').textContent=info.team.description||'No description';s.events=events;s.teamMembers=info.members||[];s.teamReports=reports||[];s.teamAvailability=Array.isArray(availability)?availability:(availability.members||availability.availability||[]);renderSchedule();renderRoster();renderDashboard();renderReports();$('eventForm').classList.toggle('hidden',!managesTeam(t));$('reportForm').classList.toggle('hidden',!managesTeam(t));$('review').classList.toggle('hidden',!managesGame(t.game_id));if(managesGame(t.game_id)){const concerns=await api(`/teams/${t.id}/concerns`);$('concerns').innerHTML=concerns.map(c=>`<div class="eh-item"><strong>${escapeHtml(c.status||'Open')}</strong> · ${escapeHtml(c.author)}<p>${escapeHtml(c.details)}</p></div>`).join('')||'No private concerns.';}const mine=Array.isArray(availability)?availability.find(x=>x.user_id===s.me.user.id)?.slots||[]:availability.slots||[];s.slots=new Set(mine.map(Number));s.avEditing=false;updateGrid();renderTeamAvailability();renderPracticeSuggestions();renderTeams();document.querySelectorAll('.eh-selected').forEach(x=>x.textContent=selectedLabel());}
+async function selectTeam(t){if(s.team?.id!==t.id){s.rosterQuery='';s.reportQuery='';}const [info,events,reports,availability]=await Promise.all([api(`/teams/${t.id}`),api(`/teams/${t.id}/events`),api(`/teams/${t.id}/reports`),api(`/teams/${t.id}/availability`)]);s.team=t;$('selected').classList.remove('hidden');$('teamTitle').textContent=`${t.name} · ${t.game_name}`;$('teamDesc').textContent=info.team.description||'No description';s.events=events;s.teamMembers=info.members||[];s.teamReports=reports||[];s.teamAvailability=Array.isArray(availability)?availability:(availability.members||availability.availability||[]);renderSchedule();renderRoster();renderDashboard();renderReports();$('eventForm').classList.toggle('hidden',!managesTeam(t));$('reportForm').classList.toggle('hidden',!canWriteReports(t));$('review').classList.toggle('hidden',!managesGame(t.game_id));if(managesGame(t.game_id)){const concerns=await api(`/teams/${t.id}/concerns`);$('concerns').innerHTML=concerns.map(c=>`<div class="eh-item"><strong>${escapeHtml(c.status||'Open')}</strong> · ${escapeHtml(c.author)}<p>${escapeHtml(c.details)}</p></div>`).join('')||'No private concerns.';}const mine=Array.isArray(availability)?availability.find(x=>x.user_id===s.me.user.id)?.slots||[]:availability.slots||[];s.slots=new Set(mine.map(Number));s.avEditing=false;updateGrid();renderTeamAvailability();renderPracticeSuggestions();renderTeams();document.querySelectorAll('.eh-selected').forEach(x=>x.textContent=selectedLabel());}
 function form(id,fn){$(id).addEventListener('submit',async e=>{e.preventDefault();const element=e.currentTarget;const values=Object.fromEntries(new FormData(element).entries());try{await fn(values);element.reset();}catch(err){notify(err.message,true);}});}
 form('gameForm',async b=>{await api('/games','POST',{name:b.name});await refresh();notify('Game created');});
 form('teamForm',async b=>{await api('/teams','POST',b);await refresh();notify('Team created');});
@@ -324,13 +338,17 @@ function applyBanner(el,value){
   if(typeof value==='string'&&value.startsWith('preset:')&&BANNERS[value.slice(7)])el.style.backgroundImage=BANNERS[value.slice(7)];
 }
 function bannerValue(){return $('pfBanner').value==='custom'?'preset:purple':$('pfBanner').value;}
-const bannerCache={};
+const bannerCache=new Map();
+function clearProfileImages(){for(const entry of bannerCache.values())if(entry.url)URL.revokeObjectURL(entry.url);bannerCache.clear();rosterAvatarCache.clear();}
 async function bannerBlobUrl(userId){
-  if(bannerCache[userId])return bannerCache[userId];
-  const token=await window.Clerk?.session?.getToken();
-  const r=await fetch(apiUrl('/banner/'+encodeURIComponent(userId)),{redirect:'error',credentials:'omit',referrerPolicy:'no-referrer',headers:{Authorization:'Bearer '+token}});
-  if(!r.ok)throw Error('No banner ('+r.status+')');
-  return bannerCache[userId]=URL.createObjectURL(await r.blob());
+ const key=profileScope()+'|'+userId,cached=bannerCache.get(key);if(cached&&(cached.pending||cached.expires>Date.now()))return cached.pending||cached.url;
+ if(cached?.url)URL.revokeObjectURL(cached.url);
+ const generation=profileCacheGeneration,entry={pending:null,url:null,expires:0};
+ entry.pending=(async()=>{const token=await window.Clerk?.session?.getToken();if(!token)throw Error('Sign in required');
+ const r=await fetch(apiUrl('/banner/'+encodeURIComponent(userId)),{redirect:'error',credentials:'omit',referrerPolicy:'no-referrer',headers:{Authorization:'Bearer '+token,...(activeViewRole?{'X-View-Role':activeViewRole}:{})}});
+ if(!r.ok)throw Error('No banner ('+r.status+')');const blob=await r.blob();if(generation!==profileCacheGeneration||bannerCache.get(key)!==entry)throw Error('Profile context changed');
+ entry.url=URL.createObjectURL(blob);entry.expires=Date.now()+PROFILE_MAX_AGE_MS;return entry.url;})().catch(error=>{if(bannerCache.get(key)===entry)bannerCache.delete(key);throw error;}).finally(()=>{entry.pending=null;});
+ bannerCache.set(key,entry);while(bannerCache.size>30){const oldest=bannerCache.keys().next().value,old=bannerCache.get(oldest);if(old.url)URL.revokeObjectURL(old.url);bannerCache.delete(oldest);}return entry.pending;
 }
 async function applyBannerFor(el,value,userId,isCurrent=()=>true){
   applyBanner(el,value);
@@ -342,7 +360,7 @@ async function uploadBanner(f){
   const token=await window.Clerk?.session?.getToken();
   const r=await fetch(apiUrl('/me/banner'),{method:'PUT',redirect:'error',credentials:'omit',referrerPolicy:'no-referrer',headers:{Authorization:'Bearer '+token,'Content-Type':f.type||'application/octet-stream'},body:f});
   const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.error||'Banner upload failed ('+r.status+')');
-  delete bannerCache[s.me.user.id];
+  clearProfileReads();
 }
 function refreshBannerPreview(){
   const v=$('pfBanner').value,f=$('pfBannerFile').files[0];
@@ -390,24 +408,34 @@ function setAvatar(url,name){
 }
 document.addEventListener('click',async e=>{
   const btn=e.target.closest('[data-profile]');if(!btn)return;
-  const {profile:uid,name,role}=btn.dataset;pd.dataset.profileUser=uid;pd.classList.add('eh-profile-full');setAccountMenu(false);$('pdEdit').classList.toggle('hidden',uid!==s.me?.user?.id);
+  const {profile:uid,name,role}=btn.dataset,scope=profileScope();pd.dataset.profileUser=uid;pd.classList.add('eh-profile-full');setAccountMenu(false);$('pdEdit').classList.toggle('hidden',uid!==s.me?.user?.id);
   pd.style.removeProperty('--pc');showCustomization({name,customization:{}});
   $('pdName').textContent=name;$('pdMeta').textContent='';$('pdRole').textContent=roleLabel(role);
   $('pdMain').textContent='';$('pdGames').textContent='';$('pdDiscord').textContent='';$('pdNote').textContent='Loading…';
   applyBanner($('pdBanner'),'preset:purple');setAvatar(null,name);$('pdMainWrap').classList.add('hidden');
   pd.showModal();updateTabTitle();
   try{
-    const p=await api('/profile/'+encodeURIComponent(uid));if(!pd.open||pd.dataset.profileUser!==uid)return;
-    $('pdName').textContent=p.name||name;
+    const p=await api('/profile/'+encodeURIComponent(uid));if(!pd.open||pd.dataset.profileUser!==uid||scope!==profileScope())return;
+    renderCachedProfile(p,uid);
+  }catch(err){$('pdNote').textContent='Could not load full profile: '+err.message;}
+});
+function renderCachedProfile(p,uid){
+ if(!pd.open||pd.dataset.profileUser!==uid)return;
+ rosterAvatarCache.set(uid,p.image_url||'');
+    $('pdName').textContent=p.name||'Member';
     $('pdMeta').textContent=p.username?'@'+p.username:'';$('pdDiscord').textContent=p.discord_username||'Not provided';
-    setAvatar(p.image_url,p.name||name);
+    setAvatar(p.image_url,p.name||'Member');
     void applyBannerFor($('pdBanner'),p.banner,uid,()=>pd.open&&pd.dataset.profileUser===uid);
     const main=(s.games.find(g=>g.id===p.main_game_id)||{}).name||p.main_game_name;
     $('pdMain').textContent=main||'';$('pdMainWrap').classList.toggle('hidden',!main);
     const list=(p.game_usernames||[]).map(x=>`<div class="eh-ign"><span>${escapeHtml(x.game_name||'Game')}</span><strong>${escapeHtml(x.username)}</strong></div>`).join('');
     $('pdGames').innerHTML=list||'<span class="eh-muted">None added yet.</span>';$('pdNote').textContent='';
     pd.style.setProperty('--pc',PRESET_COLORS[(p.banner||'').replace('preset:','')]||PRESET_COLORS.purple);showCustomization(p);updateTabTitle();
-  }catch(err){$('pdNote').textContent='Could not load full profile: '+err.message;}
+}
+document.addEventListener('eh-profile-cache',event=>{
+ const {path,data,error,scope}=event.detail;if(scope!==profileScope())return;const uid=decodeURIComponent(path.slice('/profile/'.length));
+ if(data){if(pd.open&&pd.dataset.profileUser===uid)renderCachedProfile(data,uid);if(s.me?.user.id===uid&&$('openSelfProfile').getAttribute('aria-expanded')==='true')void loadAccountMiniProfile();}
+ if(error){if(pd.open&&pd.dataset.profileUser===uid){pd.close();notify('Profile is no longer available: '+error.message,true);}if(s.me?.user.id===uid){$('accountMiniProfile').replaceChildren();setAccountMenu(false);}}
 });
 // ---- Admin: reorder teams ----
 function arrangedTeams(teams,ids){if(ids.length!==teams.length||new Set(ids).size!==ids.length)return null;const byId=new Map(teams.map(t=>[t.id,t]));return ids.every(id=>byId.has(id))?ids.map(id=>byId.get(id)):null;}
@@ -645,7 +673,7 @@ function formatNotes(text){
 
 $('reports').addEventListener('click',e=>{const b=e.target.closest('[data-edit-report]');if(!b)return;const report=(s.teamReports||[]).find(r=>String(r.id)===b.dataset.editReport);if(report)openTeamEditor('reports',report);});
 function openTeamEditor(kind,item){
- if(!s.team||!managesTeam(s.team))return;const teamId=s.team.id;
+ if(!s.team||(kind==='reports'?!canEditReport(item,s.team):!managesTeam(s.team)))return;const teamId=s.team.id;
  const dialog=document.createElement('dialog');dialog.className='eh-dialog eh-panel eh-editor';
  const event=kind==='events',date=event?easternWallDate(item.starts_at):null;
  dialog.innerHTML=`<form><h2>Edit ${event?'event':'report'}</h2><label>Title<input name="title" required maxlength="${event?120:140}" value="${escapeHtml(item.title)}"></label><label>Type<select name="type">${(event?['match','scrim','practice','event']:['scrim','vod','match','practice']).map(type=>`<option value="${type}" ${type===item.type?'selected':''}>${type==='vod'?'VOD Review':roleLabel(type)}</option>`).join('')}</select></label>${event?`<label>Opponent<input name="opponent" maxlength="100" value="${escapeHtml(item.opponent||'')}"></label><label>Date<input name="date" type="date" required value="${schDay(date)}"></label><label>Time (Eastern)<input name="time" type="time" required value="${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}"></label>`:''}<label>Notes<textarea name="${event?'notes':'content'}" ${event?'':'required'} maxlength="${event?2000:8000}">${escapeHtml(event?item.notes||'':item.content||'')}</textarea></label><p class="eh-muted">Use blank lines for spacing, - for bullets, or 1. for numbered lists.</p><p role="status"></p><button class="eh-btn" type="submit">Save changes</button> <button class="eh-btn" type="button" data-cancel>Cancel</button></form>`;
@@ -708,7 +736,7 @@ function renderRoleSelector(){
  select.value=activeViewRole;
 }
 $('roleViewSelect').addEventListener('change',async e=>{
- const select=e.target,previous=activeViewRole;activeViewRole=select.value;select.disabled=true;setAccountMenu(false);
+ const select=e.target,previous=activeViewRole;activeViewRole=select.value;clearProfileReads();if(pd.open)pd.close();select.disabled=true;setAccountMenu(false);
  // Clear data from the previous role before fetching the scoped view.
  document.querySelectorAll('.eh-coordination').forEach(d=>d.close());s.notifications=null;s.notificationsAt=0;s.notificationRequest=(s.notificationRequest||0)+1;clearTeam();$('memberDirectory').replaceChildren();$('concerns').replaceChildren();$('teamsMirror').replaceChildren();$('signed').classList.add('hidden');
  try{await refresh();notify(activeViewRole?`Viewing as ${roleLabel(activeViewRole)}.`:'Viewing all assigned roles.');}
@@ -854,19 +882,19 @@ setupSettingsTabs();
 $('closeMobileNav').onclick=()=>{setMobileNav(false);$('menuButton').focus();};
 
 function startLivePresence(){
- if(s.presenceTimer)return;s.lastActivity=Date.now();void sendPresenceHeartbeat();s.presenceTimer=setInterval(()=>{void sendPresenceHeartbeat();},30000);
+ if(s.presenceTimer)return;s.lastActivity=Date.now();void sendPresenceHeartbeat();s.presenceTimer=setInterval(()=>{void sendPresenceHeartbeat();},60000);
 }
-function stopLivePresence(){if(s.presenceTimer)clearInterval(s.presenceTimer);s.presenceTimer=null;}
+function stopLivePresence(){if(s.presenceTimer)clearInterval(s.presenceTimer);s.presenceTimer=null;s.presenceSentAt=0;s.rosterPolledAt=0;}
 async function setOfflinePresence(){if(!s.me)return;try{await api('/me/presence','POST',{activity:'offline'});}catch{}stopLivePresence();}
 async function sendPresenceHeartbeat(){
  void refreshNotifications().catch(()=>{});
- if(!s.me||!activeClerkSession()||document.visibilityState==='hidden'||s.presenceBusy)return;const uid=s.me.user.id;s.presenceBusy=true;
+ if(!s.me||!activeClerkSession()||document.visibilityState==='hidden'||s.presenceBusy||Date.now()-(s.presenceSentAt||0)<55000)return;const uid=s.me.user.id;s.presenceBusy=true;s.presenceSentAt=Date.now();
  try{
   await api('/me/presence','POST',{activity:Date.now()-(s.lastActivity||0)>300000?'idle':'active'});
   if(s.me?.user.id!==uid)return;
-  if(s.team){const teamId=s.team.id,info=await api(`/teams/${encodeURIComponent(teamId)}`);if(s.me?.user.id===uid&&s.team?.id===teamId){s.teamMembers=info.members||[];renderRoster();}}
+  if(s.team&&location.hash==='#teams'&&Date.now()-(s.rosterPolledAt||0)>=120000){s.rosterPolledAt=Date.now();const teamId=s.team.id,info=await api(`/teams/${encodeURIComponent(teamId)}`);if(s.me?.user.id===uid&&s.team?.id===teamId){s.teamMembers=info.members||[];renderRoster();}}
   if(pd.open&&pd.dataset.profileUser){const id=pd.dataset.profileUser,live=await api('/profile/'+encodeURIComponent(id)+'/presence');if(pd.open&&pd.dataset.profileUser===id){$('pdPresence').textContent=presenceLabel(live.presence);$('pdPresence').dataset.presence=live.presence;}}
-  if($('openSelfProfile').getAttribute('aria-expanded')==='true'){const live=await api('/profile/'+encodeURIComponent(uid)+'/presence');const badge=$('accountMiniProfile').querySelector('.eh-presence-label');if(badge){badge.textContent=presenceLabel(live.presence);badge.dataset.presence=live.presence;}}
+  if($('openSelfProfile').getAttribute('aria-expanded')==='true'){const live={presence:loadedCustomization.presence==='invisible'?'offline':loadedCustomization.presence==='dnd'?'dnd':loadedCustomization.presence==='idle'||Date.now()-(s.lastActivity||0)>300000?'idle':'online'};const badge=$('accountMiniProfile').querySelector('.eh-presence-label');if(badge){badge.textContent=presenceLabel(live.presence);badge.dataset.presence=live.presence;}}
  }catch{/* Presence failures must not interrupt team coordination. */}finally{s.presenceBusy=false;}
 }
 ['pointerdown','keydown'].forEach(type=>document.addEventListener(type,()=>{s.lastActivity=Date.now();},{passive:true}));
@@ -989,13 +1017,13 @@ function renderPracticeSuggestions(){
 
 // In-site inbox: polls while the site is open; no browser or Discord permission needed.
 async function refreshNotifications(force=false){
- if(!s.me||document.visibilityState==='hidden')return;if(!force&&Date.now()-(s.notificationsAt||0)<60000)return;
+ if(!s.me||document.visibilityState==='hidden')return;if(!force&&Date.now()-(s.notificationsAt||0)<300000)return;
  const key=s.me.user.id+'|'+activeViewRole;s.notificationsAt=Date.now();const request=(s.notificationRequest||0)+1;s.notificationRequest=request;
  try{const data=await api('/me/notifications');if(!s.me||key!==s.me.user.id+'|'+activeViewRole||request!==s.notificationRequest)return;s.notifications=data;const unread=data.items.filter(x=>!x.read).length;const button=$('notificationsButton');button.textContent='Notifications'+(unread?' ('+unread+')':'');button.setAttribute('aria-label',unread+' unread notifications');}
  catch{if(force)throw Error('Notifications could not load. Try again.');}
 }
 async function openNotifications(){
- const dialog=document.createElement('dialog');dialog.className='eh-dialog eh-panel eh-editor eh-coordination';dialog.innerHTML='<div class="eh-row"><h2>Notifications</h2><button class="eh-btn tiny" type="button" data-close>Close</button></div><p class="eh-muted">Reminders refresh every minute while EsportsHub is open. They are not push notifications and will not alert you while the site is closed.</p><div data-inbox></div><p role="status">Loading…</p>';
+ const dialog=document.createElement('dialog');dialog.className='eh-dialog eh-panel eh-editor eh-coordination';dialog.innerHTML='<div class="eh-row"><h2>Notifications</h2><button class="eh-btn tiny" type="button" data-close>Close</button></div><p class="eh-muted">Reminders refresh every five minutes while EsportsHub is open. Opening the inbox refreshes immediately. They are not push notifications and will not alert you while the site is closed.</p><div data-inbox></div><p role="status">Loading…</p>';
  dialog.querySelector('[data-close]').onclick=()=>dialog.close();dialog.addEventListener('close',()=>dialog.remove());document.body.append(dialog);dialog.showModal();const status=dialog.querySelector('[role=status]'),box=dialog.querySelector('[data-inbox]');
  try{await refreshNotifications(true);if(!dialog.open||!s.me)return;const data=s.notifications;status.textContent='';
   const preferences=document.createElement('form');preferences.innerHTML='<h3>Notification preferences</h3><label>Remind me before events<select name="minutes"><option value="0">Off</option><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="120">2 hours</option><option value="1440">1 day</option></select></label><label class="eh-inline-check"><input name="updates" type="checkbox"> Schedule changes</label><button class="eh-btn tiny" type="submit">Save preferences</button><p role="status"></p>';preferences.elements.minutes.value=String(data.preferences.reminder_minutes);preferences.elements.updates.checked=!!data.preferences.updates;preferences.onsubmit=async e=>{e.preventDefault();const button=preferences.querySelector('button'),message=preferences.querySelector('[role=status]');button.disabled=true;try{await api('/me/notification-preferences','PUT',{reminderMinutes:Number(preferences.elements.minutes.value),updates:preferences.elements.updates.checked});dialog.close();await openNotifications();}catch(error){message.textContent=error.message;}finally{button.disabled=false;}};box.append(preferences);
@@ -1046,9 +1074,9 @@ function resetReportEditor(){const source=$('reportForm').elements.content,edito
 function renderReports(){
  const box=$('reports');if(!box)return;box.replaceChildren();const reports=s.teamReports||[],toolbar=schEl('div','eh-reports-toolbar'),search=document.createElement('input');search.type='search';search.placeholder='Search reports, authors, or notes';search.setAttribute('aria-label','Search reports');search.value=s.reportQuery||'';
  const filter=document.createElement('select');filter.setAttribute('aria-label','Filter report type');for(const [value,label]of [['','All reports'],['scrim','Scrims'],['vod','VOD reviews'],['match','Matches'],['practice','Practices']]){const option=document.createElement('option');option.value=value;option.textContent=label;filter.append(option);}filter.value=s.reportType||'';toolbar.append(search,filter);box.append(toolbar);const total=schEl('p','eh-reports-total'),list=schEl('div','eh-report-library');box.append(total,list);
- function draw(){s.reportQuery=search.value;s.reportType=filter.value;const query=search.value.toLowerCase(),visible=reports.filter(r=>(!filter.value||r.type===filter.value)&&[r.title,r.author,r.content].some(x=>String(x||'').toLowerCase().includes(query))).sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0));total.textContent=visible.length+' report'+(visible.length===1?'':'s')+' · Shared with your team';list.replaceChildren();for(const report of visible){const card=schEl('article','eh-report-card'),head=schEl('div','eh-row'),meta=schEl('div','');meta.append(schEl('span','eh-report-type',report.type==='vod'?'VOD review':roleLabel(report.type)),schEl('h2','',report.title));head.append(meta);if(s.team&&managesTeam(s.team)){const edit=schEl('button','eh-btn tiny','Edit report');edit.type='button';edit.dataset.editReport=report.id;head.append(edit);}const details=schEl('p','eh-muted',[report.author,report.created_at?fmt(report.created_at):''].filter(Boolean).join(' · ')),content=schEl('div','eh-document eh-rich-notes');content.innerHTML=formatNotes(report.content);card.append(head,details,content);list.append(card);}if(!visible.length)list.append(schEl('div','sch-empty',reports.length?'No reports match your search.':'No reports yet. Shared reviews and coaching notes will appear here.'));}
+ function draw(){s.reportQuery=search.value;s.reportType=filter.value;const query=search.value.toLowerCase(),visible=reports.filter(r=>(!filter.value||r.type===filter.value)&&[r.title,r.author,r.content].some(x=>String(x||'').toLowerCase().includes(query))).sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0));total.textContent=visible.length+' report'+(visible.length===1?'':'s')+' · Shared with your team';list.replaceChildren();for(const report of visible){const card=schEl('article','eh-report-card'),head=schEl('div','eh-row'),meta=schEl('div','');meta.append(schEl('span','eh-report-type',report.type==='vod'?'VOD review':roleLabel(report.type)),schEl('h2','',report.title));head.append(meta);if(s.team&&canEditReport(report,s.team)){const edit=schEl('button','eh-btn tiny','Edit report');edit.type='button';edit.dataset.editReport=report.id;head.append(edit);}const details=schEl('p','eh-muted',[report.author,report.created_at?fmt(report.created_at):''].filter(Boolean).join(' · ')),content=schEl('div','eh-document eh-rich-notes');content.innerHTML=formatNotes(report.content);card.append(head,details,content);list.append(card);}if(!visible.length)list.append(schEl('div','sch-empty',reports.length?'No reports match your search.':'No reports yet. Shared reviews and coaching notes will appear here.'));}
  search.oninput=draw;filter.onchange=draw;draw();
- $('reportComposer').classList.toggle('hidden',!s.team||!managesTeam(s.team));
+ $('reportComposer').classList.toggle('hidden',!canWriteReports(s.team));
 }
 mountReportEditor($('reportForm').elements.content);
 
