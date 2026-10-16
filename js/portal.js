@@ -615,7 +615,14 @@ function appendEventResult(card,event){
  }
  if(event.result_source)row.append(schEl('small','eh-muted',`${event.result_source==='necc_page'?'Synced from NECC':'Entered manually'} · ${fmt(event.result_updated_at)}`));
  if(event.necc_match_id&&/^[a-z0-9]{10,40}$/.test(event.necc_match_id)){const link=schEl('a','eh-result-link','View NECC match');link.href='https://necc.v1.leagueos.gg/league/matches/'+event.necc_match_id;link.target='_blank';link.rel='noopener noreferrer';row.append(link);}
- if(event.necc_match_id&&s.team&&(admin()||s.me?.roles.some(m=>m.role==='team_manager'&&m.team_id===s.team.id))){const sync=schEl('button','eh-btn tiny','Sync NECC result');sync.type='button';sync.onclick=async()=>{const teamId=s.team.id;sync.disabled=true;try{await api(`/teams/${encodeURIComponent(teamId)}/events/${encodeURIComponent(event.id)}/result/sync`,'POST',{});if(s.team?.id===teamId)await selectTeam(s.team);notify('NECC result synced.');}catch(e){notify(e.message,true);}finally{sync.disabled=false;}};row.append(sync);}
+ if(event.necc_match_id&&s.team&&(admin()||s.me?.roles.some(m=>m.role==='team_manager'&&m.team_id===s.team.id))){
+  const sync=schEl('button','eh-btn tiny','Sync NECC result'),status=schEl('span','eh-result-sync-message');status.setAttribute('role','status');sync.type='button';
+  sync.onclick=async()=>{if(sync.disabled)return;const teamId=s.team.id;sync.disabled=true;sync.textContent='Reading NECC match…';status.textContent='Opening the match page and checking its scoreboard. This can take up to 45 seconds.';
+   try{const result=await api(`/teams/${encodeURIComponent(teamId)}/events/${encodeURIComponent(event.id)}/result/sync`,'POST',{});status.textContent=`Result synced: ${result.teamScore} – ${result.opponentScore}.`;if(s.team?.id===teamId)await selectTeam(s.team);notify('NECC result synced.');}
+   catch(e){status.textContent=e.message;status.classList.add('eh-result-sync-error');notify(e.message,true);}
+   finally{sync.disabled=false;sync.textContent='Sync NECC result';}
+  };row.append(sync,status);
+ }
  if(s.team&&managesTeam(s.team)){const button=schEl('button','eh-btn tiny',event.result_status?'Edit result':'Record result');button.type='button';button.onclick=()=>editEventResult(event);row.append(button);}
  card.append(row);
 }
