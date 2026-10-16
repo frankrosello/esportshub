@@ -112,15 +112,8 @@ async function loadMemberDirectory(){
   const previous=$('memberUser').value;
   listOptions($('memberUser'),directory,u=>u.name+(u.username?' · @'+u.username:''));
   if(directory.some(u=>u.id===previous))$('memberUser').value=previous;
-  $('memberDirectory').replaceChildren();
-  directory.forEach(u=>{
-    const row=document.createElement('div');row.className='eh-item';
-    const name=document.createElement('div');name.className='eh-member-name';const full=document.createElement('strong');full.textContent=u.name;const username=document.createElement('span');username.className='eh-inline-username';username.textContent=u.username?'@'+u.username:'Username not set';name.append(full,username);
-    const detail=document.createElement('div');detail.className='eh-muted';
-    detail.textContent=u.roles.map(m=>roleLabel(m.role)+(m.team_name?' · '+m.team_name:m.game_name?' · '+m.game_name:m.role==='player'?' · Unassigned':'')).join(' / ')||'No assignment';
-    const button=document.createElement('button');button.type='button';button.className='eh-btn tiny';button.textContent='Manage';button.onclick=()=>{$('memberUser').value=u.id;chooseMember();$('memberUser').focus();};
-    row.append(name,detail,button);$('memberDirectory').append(row);
-  });
+  $('memberTeamFilter').innerHTML='<option value="">All teams</option><option value="unassigned">Unassigned players</option>'+s.teams.map(t=>`<option value="${escapeHtml(t.id)}">${escapeHtml(t.name+' · '+t.game_name)}</option>`).join('');
+  $('memberTeamFilter').value=s.memberTeamFilter||'';renderMemberDirectory();
   listOptions($('memberGame'),s.games,g=>g.name);
   $('memberTeam').innerHTML='<option value="">Unassigned</option>'+s.teams.map(t=>`<option value="${escapeHtml(t.id)}">${escapeHtml(t.game_name+' / '+t.name)}</option>`).join('');
   chooseMember();
@@ -135,7 +128,7 @@ function chooseAssignment(){
   const assignment=member?.roles.find(m=>String(m.membership_id)===$('memberAssignment').value);
   $('memberRole').value=assignment?.role||'player';$('memberTeam').value=assignment?.team_id||'';
   if(assignment?.game_id)$('memberGame').value=assignment.game_id;
-  updateAssignmentScope();
+  updateAssignmentScope();renderMemberDirectory();
 }
 function updateAssignmentScope(){
   const role=$('memberRole').value;
@@ -143,18 +136,26 @@ function updateAssignmentScope(){
   $('memberGameField').classList.toggle('hidden',role!=='game_manager');
   $('memberTeam').required=['captain','team_manager','coach'].includes(role);
   $('memberGame').required=role==='game_manager';
+  const member=directory.find(u=>u.id===$('memberUser').value),editing=!!$('memberAssignment').value;
+  $('assignmentHeading').textContent=editing?'Edit assignment':'Add assignment';$('saveMember').textContent=editing?'Save changes':'Add assignment';$('saveMember').disabled=!member;
+  $('memberEditorIdentity').replaceChildren();if(member){const identity=schEl('div','eh-roster-identity');identity.innerHTML=rosterAvatar(member);const text=schEl('div','');text.append(schEl('strong','',member.name),schEl('small','eh-muted',member.username?'@'+member.username:'Username not set'));identity.append(text);$('memberEditorIdentity').append(identity);loadRosterAvatars($('memberEditorIdentity'));}else $('memberEditorIdentity').textContent='Choose a member from the directory.';
+  const hints={player:'A player can view their team and manage their own availability and RSVPs.',captain:'A captain can manage events, notes, lineups, and attendance for the assigned team.',coach:'A coach can manage events, notes, lineups, and attendance for the assigned team.',team_manager:'A team manager manages the assigned team and its NECC syncing.',game_manager:'A game manager oversees all teams in the selected game and can review private concerns.',admin:'An administrator can manage members, roles, games, and teams across the organization.'};$('assignmentRoleHint').textContent=hints[role]||'';
+  const team=s.teams.find(t=>t.id===$('memberTeam').value),game=s.games.find(g=>g.id===$('memberGame').value),scope=role==='admin'?'Organization-wide':role==='game_manager'?game?.name||'Choose a game':team?team.name+' · '+team.game_name:role==='player'?'Unassigned':'Choose a team';$('assignmentPreview').textContent=(editing?'Update to: ':'Add: ')+roleLabel(role)+' · '+scope;
+  $('addMemberAssignment').disabled=!member;
+
 }
 $('memberUser').addEventListener('change',chooseMember);
 $('memberAssignment').addEventListener('change',chooseAssignment);
-$('memberRole').addEventListener('change',updateAssignmentScope);
+$('memberRole').addEventListener('change',updateAssignmentScope);$('memberTeam').addEventListener('change',updateAssignmentScope);$('memberGame').addEventListener('change',updateAssignmentScope);
+$('addMemberAssignment').onclick=()=>{$('memberAssignment').value='';chooseAssignment();$('memberRole').focus();};
 $('reloadMembers').onclick=async()=>{try{await loadMemberDirectory();notify('Member list updated.');}catch(e){notify(e.message,true);}};
 $('memberForm').addEventListener('submit',async event=>{
-  event.preventDefault();$('saveMember').disabled=true;
+  event.preventDefault();$('saveMember').disabled=true;$('memberFormStatus').textContent='Saving assignment…';
   try{
     const userId=$('memberUser').value;if(!userId)throw Error('Choose a member');
     await api('/members/'+encodeURIComponent(userId)+'/assignment','PUT',{membershipId:$('memberAssignment').value?Number($('memberAssignment').value):null,role:$('memberRole').value,teamId:$('memberTeam').value||null,gameId:$('memberGame').value||null});
-    await refresh();go('members');notify('Member assignment saved.');
-  }catch(e){notify(e.message,true);}finally{$('saveMember').disabled=false;}
+    await refresh();go('members');$('memberFormStatus').textContent='Assignment saved.';notify('Member assignment saved.');
+  }catch(e){$('memberFormStatus').textContent=e.message;notify(e.message,true);}finally{$('saveMember').disabled=false;}
 });
 $('dashboardInviteForm').addEventListener('submit',async event=>{
   event.preventDefault();const value=$('dashboardInviteToken').value.trim();let token=value;
@@ -648,6 +649,7 @@ function openTeamEditor(kind,item){
  const dialog=document.createElement('dialog');dialog.className='eh-dialog eh-panel eh-editor';
  const event=kind==='events',date=event?easternWallDate(item.starts_at):null;
  dialog.innerHTML=`<form><h2>Edit ${event?'event':'report'}</h2><label>Title<input name="title" required maxlength="${event?120:140}" value="${escapeHtml(item.title)}"></label><label>Type<select name="type">${(event?['match','scrim','practice','event']:['scrim','vod','match','practice']).map(type=>`<option value="${type}" ${type===item.type?'selected':''}>${type==='vod'?'VOD Review':roleLabel(type)}</option>`).join('')}</select></label>${event?`<label>Opponent<input name="opponent" maxlength="100" value="${escapeHtml(item.opponent||'')}"></label><label>Date<input name="date" type="date" required value="${schDay(date)}"></label><label>Time (Eastern)<input name="time" type="time" required value="${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}"></label>`:''}<label>Notes<textarea name="${event?'notes':'content'}" ${event?'':'required'} maxlength="${event?2000:8000}">${escapeHtml(event?item.notes||'':item.content||'')}</textarea></label><p class="eh-muted">Use blank lines for spacing, - for bullets, or 1. for numbered lists.</p><p role="status"></p><button class="eh-btn" type="submit">Save changes</button> <button class="eh-btn" type="button" data-cancel>Cancel</button></form>`;
+ if(event)mountVodTextarea(dialog.querySelector('textarea'));
  if(!event){mountReportEditor(dialog.querySelector('textarea'));dialog.querySelector('p.eh-muted').textContent='Use the toolbar to format your review. Changes are shared with your team.';}
  dialog.querySelector('[data-cancel]').onclick=()=>dialog.close();dialog.addEventListener('close',()=>dialog.remove());
  dialog.querySelector('form').onsubmit=async e=>{e.preventDefault();const form=e.target,b=Object.fromEntries(new FormData(form)),save=form.querySelector('[type=submit]');save.disabled=true;
@@ -1034,6 +1036,7 @@ function mountReportEditor(source){
  const sync=()=>{source.value=reportDocumentText(editor);count.textContent=source.value.length+' / 8,000 characters';count.classList.toggle('eh-document-over-limit',source.value.length>8000);};
  function command(name,value){remember();const range=lastRange?.cloneRange();editor.focus();if(range){const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);}document.execCommand(name,false,value);sync();remember();}
  for(const [label,name,value]of [['Bold','bold',null],['Italic','italic',null],['Strikethrough','strikeThrough',null],['Heading','formatBlock','h2'],['Subheading','formatBlock','h3'],['Paragraph','formatBlock','div'],['Bullets','insertUnorderedList',null],['Numbered list','insertOrderedList',null],['Quote','formatBlock','blockquote'],['Undo','undo',null],['Redo','redo',null]]){const button=schEl('button','',label);button.type='button';button.setAttribute('aria-label',label);button.onmousedown=e=>e.preventDefault();button.onclick=()=>command(name,value);toolbar.append(button);}
+ const vod=schEl('button','','+ Map & VOD code');vod.type='button';vod.onmousedown=e=>e.preventDefault();vod.onclick=()=>{remember();const bookmark=lastRange?.cloneRange();requestVodCode((map,code)=>{editor.focus();const selection=window.getSelection();if(bookmark&&editor.contains(bookmark.startContainer)){selection.removeAllRanges();selection.addRange(bookmark);}else{const range=document.createRange();range.selectNodeContents(editor);range.collapse(false);selection.removeAllRanges();selection.addRange(range);}const text=`\n\n### ${map}\n**VOD code:** ${code}\n`;document.execCommand('insertHTML',false,formatNotes(text));sync();remember();});};toolbar.append(vod);
  editor.addEventListener('input',()=>{sync();remember();});for(const type of ['keyup','mouseup','focus'])editor.addEventListener(type,remember);
  for(const type of ['paste','drop'])editor.addEventListener(type,e=>{e.preventDefault();editor.focus();const text=(e.clipboardData||e.dataTransfer)?.getData('text/plain')||'';document.execCommand('insertText',false,text);sync();});
  source.form?.addEventListener('submit',e=>{sync();if(!source.value.trim()||source.value.length>8000){e.preventDefault();e.stopImmediatePropagation();count.textContent=!source.value.trim()?'Write some report content first.':'Report exceeds 8,000 characters. Shorten it before saving.';editor.focus();}},true);
@@ -1048,3 +1051,29 @@ function renderReports(){
  $('reportComposer').classList.toggle('hidden',!s.team||!managesTeam(s.team));
 }
 mountReportEditor($('reportForm').elements.content);
+
+function renderMemberDirectory(){
+ const target=$('memberDirectory');if(!target)return;target.replaceChildren();
+ const unassigned=u=>u.roles.some(m=>m.role==='player'&&!m.team_id&&!m.game_id),role=$('memberRoleFilter').value,team=$('memberTeamFilter').value,query=$('memberSearch').value.trim().toLowerCase();s.memberTeamFilter=team;
+ const visible=directory.filter(u=>(!query||[u.name,u.username].some(x=>String(x||'').toLowerCase().includes(query)))&&(!role||u.roles.some(m=>m.role===role))&&(!team||(team==='unassigned'?unassigned(u):u.roles.some(m=>m.team_id===team))));
+ const pages=Math.max(1,Math.ceil(visible.length/25));s.memberPage=Math.min(Math.max(s.memberPage||1,1),pages);const start=(s.memberPage-1)*25;
+ $('memberStats').replaceChildren();for(const [value,label]of [[directory.length,'Registered members'],[directory.filter(unassigned).length,'Unassigned players'],[directory.filter(u=>u.roles.length>1).length,'Multiple assignments']]){const metric=schEl('div','eh-panel');metric.append(schEl('strong','',String(value)),schEl('span','',label));$('memberStats').append(metric);}
+ $('memberCount').textContent=visible.length?`${start+1}–${Math.min(start+25,visible.length)} of ${visible.length} member${visible.length===1?'':'s'}`:'No matching members';
+ for(const user of visible.slice(start,start+25)){const row=schEl('article','eh-admin-member'+($('memberUser').value===user.id?' eh-selected-member':'')),identity=schEl('div','eh-roster-identity');identity.innerHTML=rosterAvatar(user);const text=schEl('div','eh-member-name'),full=schEl('strong','',user.name),username=schEl('span','eh-inline-username',user.username?'@'+user.username:'Username not set');text.append(full,username);identity.append(text);row.append(identity);
+  const assignments=schEl('div','eh-assignment-badges');for(const membership of user.roles){const chip=schEl('span','',roleLabel(membership.role)+(membership.team_name?' · '+membership.team_name:membership.game_name?' · '+membership.game_name:membership.role==='player'?' · Unassigned':''));assignments.append(chip);}if(!user.roles.length)assignments.textContent='No assignments';row.append(assignments);
+  const manage=schEl('button','eh-btn tiny',$('memberUser').value===user.id?'Selected':'Manage');manage.type='button';manage.setAttribute('aria-label','Manage '+user.name);manage.onclick=()=>{$('memberUser').value=user.id;chooseMember();$('memberFormStatus').textContent='';if(window.matchMedia('(max-width:1000px)').matches)$('memberEditor').scrollIntoView({behavior:'smooth',block:'start'});$('memberAssignment').focus({preventScroll:true});};row.append(manage);target.append(row);
+ }
+ if(!visible.length)target.append(schEl('div','sch-empty',directory.length?'No members match these filters.':'No registered members yet.'));
+ const pagination=$('memberPagination');pagination.replaceChildren();if(pages>1){for(const [label,delta]of [['Previous',-1],['Next',1]]){const button=schEl('button','eh-btn tiny',label);button.type='button';button.disabled=delta<0?s.memberPage===1:s.memberPage===pages;button.onclick=()=>{s.memberPage+=delta;renderMemberDirectory();};pagination.append(button);}pagination.append(schEl('span','eh-muted',`Page ${s.memberPage} of ${pages}`));}loadRosterAvatars(target);
+}
+for(const id of ['memberSearch','memberRoleFilter','memberTeamFilter'])$(id).addEventListener(id==='memberSearch'?'input':'change',()=>{s.memberPage=1;renderMemberDirectory();});
+
+// Insert named replay codes into notes without requiring a new storage format.
+function requestVodCode(insert){
+ const dialog=document.createElement('dialog');dialog.className='eh-dialog eh-panel eh-vod-insert';dialog.innerHTML='<form><h2>Add map & VOD code</h2><label>Map name<input name="map" maxlength="80" required placeholder="e.g. Lijiang Tower"></label><label>VOD / replay code<input name="code" maxlength="64" required pattern="[A-Za-z0-9_-]+" placeholder="e.g. ABC123" autocomplete="off"></label><p class="eh-muted">Add another entry for each map. Codes may contain letters, numbers, underscores, or hyphens.</p><button class="eh-btn" type="submit">Insert entry</button> <button class="eh-btn" type="button" data-cancel>Cancel</button></form>';
+ dialog.querySelector('[data-cancel]').onclick=()=>dialog.close();dialog.addEventListener('close',()=>dialog.remove());dialog.querySelector('form').onsubmit=e=>{e.preventDefault();const form=e.target,map=form.elements.map.value.trim(),code=form.elements.code.value.trim();if(!map||!/^[A-Za-z0-9_-]{1,64}$/.test(code))return;dialog.close();insert(map,code);};document.body.append(dialog);dialog.showModal();
+}
+function mountVodTextarea(source){
+ if(!source||source.dataset.vodMounted)return;source.dataset.vodMounted='true';const button=schEl('button','eh-btn tiny eh-insert-vod','+ Add map & VOD code');button.type='button';button.onclick=()=>{const start=source.selectionStart,end=source.selectionEnd;requestVodCode((map,code)=>{const text=`\n\n### ${map}\n**VOD code:** ${code}\n`;if(source.maxLength>0&&source.value.length-(end-start)+text.length>source.maxLength){notify('This entry would exceed the notes limit.',true);return;}source.setRangeText(text,start,end,'end');source.dispatchEvent(new Event('input',{bubbles:true}));source.focus();});};source.before(button);
+}
+mountVodTextarea($('eventForm').elements.notes);
