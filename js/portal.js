@@ -133,7 +133,7 @@ $('dashboardInviteForm').addEventListener('submit',async event=>{
   history.replaceState(null,'',routes.home({invite:token}));await renderAuth();
 });
 $('api').value=s.api;$('saveApi').addEventListener('click',()=>{const a=$('api').value.trim().replace(/\/$/,'');if(!/^https:\/\/[a-z0-9.-]+(?::\d+)?$/i.test(a)&&!/^http:\/\/localhost:\d+$/i.test(a))return notify('Enter a valid HTTPS Worker URL',true);s.api=a;localStorage.setItem('eh_live_api',a);notify('API URL saved. Reload to reconnect.');});
-$('logout').onclick=async()=>{resetInvite();await window.Clerk.signOut({redirectUrl:signInReturnUrl});showGuest();};
+$('logout').onclick=async()=>{const button=$('logout');button.disabled=true;setAccountMenu(false);try{resetInvite();await window.Clerk.signOut({redirectUrl:signInReturnUrl});showGuest();}catch(e){notify('Unable to sign out: '+e.message,true);}finally{button.disabled=false;}};
 // Always follow the device appearance, including changes while the page is open.
 const deviceTheme = window.matchMedia('(prefers-color-scheme: dark)');
 const applyDeviceTheme = () => {
@@ -180,7 +180,7 @@ function mountClerk(){
   if(signInMounted)$('signInLoading').textContent='';
   if(signUpMounted)$('signUpLoading').textContent='';
 }
-function showGuest(msg){s.me=null;$('loginPage').classList.remove('hidden');$('dashboardShell').classList.add('hidden');$('guest').classList.remove('hidden');$('signed').classList.add('hidden');$('logout').classList.add('hidden');$('authStatus').textContent='Sign in required';$('sidebarName').textContent='Not signed in';$('sidebarRole').textContent='Clerk authentication';$('guestNotice').textContent=msg||'';$('accountRecovery').classList.toggle('hidden',!window.Clerk?.user||!msg);$('accountRecoveryStatus').textContent=msg||'';mountClerk();}
+function showGuest(msg){s.me=null;setAccountMenu(false);$('loginPage').classList.remove('hidden');$('dashboardShell').classList.add('hidden');$('guest').classList.remove('hidden');$('signed').classList.add('hidden');$('logout').classList.add('hidden');$('authStatus').textContent='Sign in required';$('sidebarName').textContent='Not signed in';$('sidebarRole').textContent='Clerk authentication';$('guestNotice').textContent=msg||'';$('accountRecovery').classList.toggle('hidden',!window.Clerk?.user||!msg);$('accountRecoveryStatus').textContent=msg||'';mountClerk();}
 function resetInvite(){pendingInvite='';inviteDetails=null;try{sessionStorage.removeItem(pendingKey);}catch{}const url=new URL(location.href);url.searchParams.delete('invite');history.replaceState(null,'',url.href);$('invitationCard').classList.add('hidden');}
 async function showInvitation(){
   showGuest();unmountClerk();$('authCard').classList.add('hidden');$('signUpCard').classList.add('hidden');$('invitationCard').classList.remove('hidden');$('inviteAuthButtons').classList.add('hidden');$('acceptInvite').classList.add('hidden');$('invitationStatus').textContent='Checking your invitation…';
@@ -492,7 +492,7 @@ function renderTeamAvailability(){
 $('editAvailability').addEventListener('click',()=>{s.avEditing=!s.avEditing;renderTeamAvailability();});
 
 document.querySelectorAll('[data-jump]').forEach(b=>b.onclick=()=>go(b.dataset.jump));
-$('openSelfProfile').addEventListener('click',()=>{if(!s.me)return;const m={user_id:s.me.user.id,display_name:s.me.user.name,role:s.me.roles?.[0]?.role||'player'};const b=document.createElement('button');b.dataset.profile=m.user_id;b.dataset.name=m.display_name;b.dataset.role=m.role;b.hidden=true;document.body.append(b);b.click();b.remove();});
+$('accountProfile').addEventListener('click',()=>{setAccountMenu(false);if(!s.me)return;const m={user_id:s.me.user.id,display_name:s.me.user.name,role:s.me.roles?.[0]?.role||'player'};const b=document.createElement('button');b.dataset.profile=m.user_id;b.dataset.name=m.display_name;b.dataset.role=m.role;b.hidden=true;document.body.append(b);b.click();b.remove();});
 $('pdEdit').addEventListener('click',()=>{pd.close();go('settings');$('pfFirst').focus();});
 
 function roleLabel(role){return String(role||'Member').replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase());}
@@ -574,3 +574,14 @@ async function deleteTeamEvent(event,button){
  try{await api(`/teams/${encodeURIComponent(teamId)}/events/${encodeURIComponent(event.id)}`,'DELETE');if(s.team?.id===teamId)await selectTeam(s.team);notify('Event deleted.');}
  catch(e){notify('Could not delete event: '+e.message,true);}finally{button.disabled=false;}
 }
+
+function setAccountMenu(open,focusFirst=false){
+ open=!!open&&!!s.me;const trigger=$('openSelfProfile'),menu=$('accountDropup');
+ trigger.setAttribute('aria-expanded',String(open));menu.classList.toggle('hidden',!open);
+ if(open&&focusFirst)$('accountProfile').focus();
+}
+$('openSelfProfile').addEventListener('click',()=>setAccountMenu($('openSelfProfile').getAttribute('aria-expanded')!=='true'));
+$('openSelfProfile').addEventListener('keydown',e=>{if(e.key==='ArrowUp'||e.key==='ArrowDown'){e.preventDefault();setAccountMenu(true,true);}});
+document.addEventListener('click',e=>{if(!e.target.closest('.eh-account-area'))setAccountMenu(false);});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('openSelfProfile').getAttribute('aria-expanded')==='true'){setAccountMenu(false);$('openSelfProfile').focus();}});
+document.addEventListener('focusin',e=>{if(!e.target.closest('.eh-account-area'))setAccountMenu(false);});
