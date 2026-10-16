@@ -229,21 +229,41 @@ async function renderAuth(){
 window.addEventListener('load',async()=>{try{if(!window.Clerk)throw Error('Clerk script did not load. Reload the page or check browser content blocking.');await window.Clerk.load({...routes.clerkOptions(authReturnUrl(),pendingInvite),signInForceRedirectUrl:authReturnUrl(),signInFallbackRedirectUrl:authReturnUrl(),signUpForceRedirectUrl:authReturnUrl(),signUpFallbackRedirectUrl:authReturnUrl(),...(window.__internal_ClerkUICtor?{ui:{ClerkUI:window.__internal_ClerkUICtor}}:{})});s.clerkReady=true;window.Clerk.addListener(()=>{void renderAuth().catch(e=>{showGuest(e.message);});});await renderAuth();}catch(e){$('signInLoading').textContent='Unable to load sign-in: '+e.message;$('signUpLoading').textContent='Unable to load sign-up: '+e.message;notify('Unable to start Clerk: '+e.message,true);showGuest(e.message);}});
 
 // Profile editing (name, username, picture) through Clerk.
-function fillProfileBasics(){const u=window.Clerk?.user;if(!u)return;$('pfFirst').value=u.firstName||'';$('pfLast').value=u.lastName||'';$('pfUser').value='';$('pfEmail').textContent=u.primaryEmailAddress?.emailAddress||'';}
+function fillProfileBasics(){const u=window.Clerk?.user;if(!u)return;showAvatars();$('pfFirst').value=u.firstName||'';$('pfLast').value=u.lastName||'';$('pfUser').value='';$('pfEmail').textContent=u.primaryEmailAddress?.emailAddress||'';}
+function showAvatars(){
+  const u=window.Clerk?.user;if(!u)return;
+  const full=[u.firstName,u.lastName].filter(Boolean).join(' ')||'Member';
+  const initials=full.split(' ').slice(0,2).map(x=>x[0]).join('').toUpperCase();
+  [$('pfAvatarPreview'),$('sidebarAvatar')].forEach(el=>{
+    el.replaceChildren();
+    if(u.hasImage&&u.imageUrl){const i=document.createElement('img');i.alt='';i.src=u.imageUrl;i.style.cssText='width:100%;height:100%;object-fit:cover;border-radius:50%';el.append(i);}
+    else el.textContent=initials;
+  });
+}
+$('pfAvatar').addEventListener('change',()=>{
+  const f=$('pfAvatar').files[0];if(!f)return;
+  const i=document.createElement('img');i.alt='';i.src=URL.createObjectURL(f);i.style.cssText='width:100%;height:100%;object-fit:cover;border-radius:50%';
+  $('pfAvatarPreview').replaceChildren(i);
+});
+const errMsg=err=>err?.errors?.[0]?.longMessage||err?.message||'failed';
 $('profileForm').addEventListener('submit',async e=>{
   e.preventDefault();const u=window.Clerk?.user;if(!u)return;
   const btn=$('pfSave'),status=$('pfStatus');btn.disabled=true;status.textContent='Saving…';
-  try{
-    const body={firstName:$('pfFirst').value.trim(),lastName:$('pfLast').value.trim()};
-    await u.update(body);
-    const f=$('pfAvatar').files[0];if(f){await u.setProfileImage({file:f});$('pfAvatar').value='';}
-    await saveAppProfile();
-    const full=[u.firstName,u.lastName].filter(Boolean).join(' ')||u.username||'Member';
-    $('sidebarName').textContent=full;$('welcome').textContent=full.split(' ')[0];
-    $('sidebarAvatar').textContent=full.split(' ').slice(0,2).map(x=>x[0]).join('').toUpperCase();
-    status.textContent='Profile saved.';
-  }catch(err){status.textContent=err.errors?.[0]?.longMessage||err.message||'Could not save profile.';}
-  finally{btn.disabled=false;}
+  const problems=[];
+  try{await u.update({firstName:$('pfFirst').value.trim(),lastName:$('pfLast').value.trim()});}
+  catch(err){problems.push('Name: '+errMsg(err));}
+  const f=$('pfAvatar').files[0];
+  if(f){
+    if(f.size>10*1024*1024)problems.push('Picture: file is over 10 MB');
+    else{try{await u.setProfileImage({file:f});$('pfAvatar').value='';}catch(err){problems.push('Picture: '+errMsg(err));}}
+  }
+  try{await saveAppProfile();}catch(err){problems.push(err.message);}
+  try{await u.reload();}catch{}
+  const full=[u.firstName,u.lastName].filter(Boolean).join(' ')||'Member';
+  $('sidebarName').textContent=full;$('welcome').textContent=full.split(' ')[0];
+  showAvatars();
+  status.textContent=problems.length?'Some changes did not save: '+problems.join(' · '):'Profile saved.';
+  btn.disabled=false;
 });
 $('pfManage').onclick=()=>window.Clerk?.openUserProfile?.();
 
@@ -273,7 +293,7 @@ async function fillProfile(){
 async function saveAppProfile(){
   const game_usernames={};$('pfGames').querySelectorAll('input[data-game]').forEach(i=>{const v=i.value.trim();if(v)game_usernames[i.dataset.game]=v;});
   try{await api('/me/profile','PUT',{username:$('pfUser').value.trim(),main_game_id:$('pfMain').value||null,banner:bannerValue()||'preset:purple',game_usernames});}
-  catch(e){throw Error('Name saved, but game profile could not be saved: '+e.message);}
+  catch(e){throw Error('Game profile: '+e.message);}
 }
 // ---- View another member's profile (Discord-style card) ----
 const PRESET_COLORS={purple:'#6326a6',sunset:'#f12711',ocean:'#1c92d2',forest:'#2f7a5a',night:'#2c5364'};
