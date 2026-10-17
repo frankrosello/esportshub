@@ -743,3 +743,13 @@ a:focus-visible,button:focus-visible,input:focus-visible,textarea:focus-visible,
 #notice:empty{display:none}#dashSeason{margin-top:8px}article:has(>#dashSeason){margin-bottom:16px}
 
 #dashboardShell [data-panel] .eh-panel,#dashboardShell [data-panel] .eh-report-card{border-top-color:var(--poly-blue)!important}
+
+/* Anchor the popout to the account button, independent of the role selector. */
+#accountDropup{position:fixed;right:auto;top:auto;overscroll-behavior:contain;z-index:1000;scrollbar-width:thin}
+#accountDropup .eh-mini-status-options{border-top:1px solid #ffffff24;padding:5px 0;display:grid;gap:2px}
+#accountDropup .eh-mini-status-choice{display:flex;align-items:center;gap:10px;padding:8px 5px;font-weight:400}
+#accountDropup .eh-mini-status-choice>span:last-child{margin:0!important;flex:1;min-width:0}
+#accountDropup .eh-mini-status-choice strong{display:block;font-size:12px}#accountDropup .eh-mini-status-choice small{display:block;font-size:10px;opacity:.8;line-height:1.4;margin-top:3px}
+#accountDropup .eh-mini-status-choice[aria-pressed=true]{background:#ffffff18!important}
+#accountDropup [data-presence=offline]>.eh-mini-status-dot{background:#9ba1ab}#accountDropup [data-presence=idle]>.eh-mini-status-dot{background:#f4bf4f}#accountDropup [data-presence=dnd]>.eh-mini-status-dot{background:#ee6262}
+#accountDropup .eh-mini-status-message:empty{display:none}#accountDropup .eh-mini-status-message{font-size:11px;line-height:1.4;margin:6px}
