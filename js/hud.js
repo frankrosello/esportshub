@@ -1,0 +1,221 @@
+/* Presentation-only HUD enhancements. No authentication or Worker changes. */
+(()=>{
+ const pending=new Set();let scheduled=false;
+ function segments(progress){
+  if(!progress.closest('#dashAvailability,#practiceSuggestions,[data-panel=availability]'))return;
+  const total=Math.max(0,Math.trunc(Number(progress.dataset.squadSize??progress.max)||0)),filled=Math.min(total,Math.max(0,Math.trunc(progress.value)));
+  let bar=progress.nextElementSibling;if(!bar?.classList.contains('hud-segments')){bar=document.createElement('span');bar.className='hud-segments';bar.setAttribute('aria-hidden','true');progress.after(bar);progress.classList.add('hud-native-progress');}
+  if(bar.childElementCount!==total){bar.replaceChildren();for(let i=0;i<total;i++)bar.append(document.createElement('i'));}
+  bar.style.setProperty('--hud-segment-count',String(total||1));bar.hidden=total===0;
+  [...bar.children].forEach((n,i)=>n.classList.toggle('filled',i<filled));
+ }
+
+ function closeIcons(root){for(const button of root.querySelectorAll('button')){if(button.dataset.hudClose||button.textContent.trim()!=='Close')continue;button.dataset.hudClose='true';button.setAttribute('aria-label','Close');button.innerHTML='<svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true" data-slot="icon">  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>';const label=document.createElement('span');label.className='hud-sr-only';label.textContent='Close';button.append(label);}}
+ function queue(root){pending.add(root);if(scheduled)return;scheduled=true;requestAnimationFrame(()=>{scheduled=false;for(const n of pending){if(n instanceof Element){if(n.matches('progress'))segments(n);n.querySelectorAll('progress').forEach(segments);closeIcons(n);}}pending.clear();});}
+ const observer=new MutationObserver(records=>{for(const record of records){if(record.type==='attributes')queue(record.target);else for(const n of record.addedNodes)if(n instanceof Element)queue(n);}});observer.observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['value','max','data-squad-size']});queue(document.body);
+})();
+
+(()=>{
+ const roles={players:{tag:'PLAYER',title:'Focus on your next game.',description:'Your RSVP, starting or substitute assignment, warmup, shared availability, and team feedback. Everything you need before you queue.',features:['Respond to events and review your lineup.','Share availability once across all your teams.','Publish reviews and raise private concerns.']},captains:{tag:'CAPTAIN',title:'Set the pace. Lead the team.',description:'Bring your team into the next match prepared. Coordinate the lineup, warmup, and practice plan while keeping the review loop clear.',features:['Confirm starters and substitutes per event.','Find practice windows and track attendance.','Open the NECC match link for official check-in.']},managers:{tag:'MANAGER',title:'Keep the whole operation moving.',description:'See your assigned teams, maintain schedules, and keep the right people connected. Tools and access always follow the roles assigned to your account.',features:['Manage scoped teams and invitations.','Keep NECC schedules and results up to date.','Authorized game managers and admins review private concerns.']}};
+ const tabs=[...document.querySelectorAll('[data-hud-role]')],panel=document.getElementById('hudRolePanel');
+ function choose(tab){const value=roles[tab.dataset.hudRole];tabs.forEach(t=>{t.setAttribute('aria-selected',String(t===tab));t.tabIndex=t===tab?0:-1;});panel.setAttribute('aria-labelledby',tab.id);document.getElementById('hudRoleTag').textContent='MY ROLE: '+value.tag;document.getElementById('hudRoleTitle').textContent=value.title;document.getElementById('hudRoleDescription').textContent=value.description;const list=document.getElementById('hudRoleFeatures');list.replaceChildren();for(const text of value.features){const li=document.createElement('li');li.textContent=text;list.append(li);}}
+ tabs.forEach((tab,index)=>{tab.addEventListener('click',()=>choose(tab));tab.addEventListener('keydown',e=>{if(!['ArrowUp','ArrowDown','Home','End'].includes(e.key))return;e.preventDefault();const next=e.key==='Home'?0:e.key==='End'?tabs.length-1:(index+(e.key==='ArrowDown'?1:-1)+tabs.length)%tabs.length;choose(tabs[next]);tabs[next].focus();});});
+ // Demo event only. The signed-out page never requests protected team information.
+ if(document.getElementById('hudCountdownHours')){const eastern=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()),day=new Date(eastern+'T12:00:00Z');let offset=(5-day.getUTCDay()+7)%7;const date=new Date(day);date.setUTCDate(date.getUTCDate()+offset);let target=fromEasternInput(date.toISOString().slice(0,10),'19:00');if(target<=new Date()){date.setUTCDate(date.getUTCDate()+7);target=fromEasternInput(date.toISOString().slice(0,10),'19:00');}function tick(){if(document.hidden||document.getElementById('loginPage')?.classList.contains('hidden'))return;const total=Math.max(0,Math.floor((target-Date.now())/1000));document.getElementById('hudCountdownHours').textContent=String(Math.floor(total/3600)).padStart(2,'0');document.getElementById('hudCountdownMinutes').textContent=String(Math.floor(total/60)%60).padStart(2,'0');document.getElementById('hudCountdownSeconds').textContent=String(total%60).padStart(2,'0');}tick();const timer=setInterval(tick,1000);window.addEventListener('pagehide',()=>clearInterval(timer),{once:true});document.addEventListener('visibilitychange',tick);}
+})();
+
+// Match the dashboard's existing information hierarchy without moving its hooks.
+(()=>{
+ const render=renderDashboard;
+ function availabilityCard(){const team=s.team,grid=document.querySelector('.eh-dashboard-grid');if(!grid)return;let card=document.getElementById('hudDashboardAvailability');if(!card){card=document.createElement('article');card.id='hudDashboardAvailability';card.className='eh-panel eh-overview-card';const heading=document.createElement('div');heading.className='eh-row';const title=document.createElement('h2');title.innerHTML='<span class="eh-overview-section-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg></span><span>Availability at a Glance</span>';const button=document.createElement('button');button.className='eh-btn tiny';button.type='button';button.textContent='View Availability';button.onclick=()=>go('availability');heading.append(title,button);const body=document.createElement('div');body.id='dashAvailability';card.append(heading,body);document.getElementById('dashEvents')?.closest('article').after(card);}card.hidden=!team||guestTeam(team);if(card.hidden)return;const data=dashboardData(),box=card.querySelector('#dashAvailability'),text=document.createElement('p'),progress=document.createElement('progress');const total=data.players.length,submitted=data.submitted.length,percentage=total?Math.round(submitted/total*100):0;
+ const percent=document.createElement('div');percent.className='eh-hud-percent';const number=document.createElement('strong');number.textContent=percentage+'%';const caption=document.createElement('small');caption.textContent='weekly schedules submitted';percent.append(number,caption);
+ text.className='eh-hud-availability-count';text.textContent=submitted+' of '+total+' players submitted';progress.dataset.squadSize=String(total);progress.max=total||1;progress.value=submitted;progress.hidden=!total;progress.setAttribute('aria-valuetext',submitted+' of '+total+' players submitted');progress.setAttribute('aria-label','Players with submitted availability');
+ const ownSaved=data.schedules.has(String(s.me?.user?.id)),status=document.createElement('p');status.className='eh-hud-availability-status';status.textContent=ownSaved?'Your weekly availability is saved.':'Save your weekly availability to help your team plan.';
+ const note=document.createElement('p');note.className='eh-muted';note.textContent=!total?'No starters or substitutes are assigned yet.':data.upcoming.length?data.atNext.length+' of '+total+' players marked available at the next session’s start.':'No upcoming session to check availability against.';box.replaceChildren(percent,text,progress,status,note);}
+ renderDashboard=function(...args){const result=render.apply(this,args);availabilityCard();return result;};if(s.me)availabilityCard();
+ const sidebar=document.getElementById('sidebar'),query=matchMedia('(max-width:900px)');function syncNav(){const closed=query.matches&&!sidebar.classList.contains('open');sidebar.inert=closed;sidebar.setAttribute('aria-hidden',String(closed));}if(sidebar){new MutationObserver(syncNav).observe(sidebar,{attributes:true,attributeFilter:['class']});query.addEventListener('change',syncNav);syncNav();}
+})();
+
+/* Reference page layouts: retain the real report cards, forms and handlers. */
+(()=>{
+ const box=document.getElementById('reports');let activeTitle='',currentList=null,currentCards=[];
+ function reportLibrary(){
+  const list=box?.querySelector('.eh-report-library');if(!list)return;
+  const cards=[...list.children].filter(n=>n.classList.contains('eh-report-card'));
+  if(list===currentList&&cards.length===currentCards.length&&cards.every((n,i)=>n===currentCards[i]))return;
+  currentList=list;currentCards=cards;
+  let layout=box.querySelector('.hud-report-layout'),nav=box.querySelector('.hud-report-index');
+  if(!layout){layout=document.createElement('div');layout.className='hud-report-layout';nav=document.createElement('nav');nav.className='hud-report-index';nav.setAttribute('aria-label','Report library');list.before(layout);layout.append(nav,list);}
+  nav.replaceChildren();const heading=document.createElement('h2');heading.textContent='Library';nav.append(heading);
+  const buttons=cards.map((card,index)=>{const button=document.createElement('button');button.type='button';button.className='hud-report-choice';const title=document.createElement('strong');title.textContent=card.querySelector('h2')?.textContent||'Untitled report';const meta=document.createElement('small');meta.textContent=card.querySelector(':scope > .eh-muted')?.textContent||'';button.append(title,meta);button.onclick=()=>select(index);nav.append(button);return button;});
+  function select(index){cards.forEach((card,i)=>{card.hidden=i!==index;buttons[i].setAttribute('aria-current',i===index?'true':'false');});activeTitle=cards[index]?.querySelector('h2')?.textContent||'';}
+  if(cards.length){const selected=cards.findIndex(c=>c.querySelector('h2')?.textContent===activeTitle);select(Math.max(0,selected));}
+  else{const empty=document.createElement('p');empty.className='eh-muted';empty.textContent='No matching reports';nav.append(empty);}
+ }
+ const launcher=document.getElementById('reportComposer'),reportHeading=document.querySelector('[data-panel=reports]>.eh-heading');
+ if(launcher&&reportHeading)reportHeading.append(launcher);
+ const planning=document.querySelector('.hud-availability-sidebar');
+ function practiceSidebar(){const panel=document.getElementById('practiceSuggestions');if(panel&&planning&&panel.parentElement!==planning)planning.prepend(panel);}
+ let scheduled=false;function update(){if(scheduled)return;scheduled=true;requestAnimationFrame(()=>{scheduled=false;reportLibrary();practiceSidebar();});}
+ if(box)new MutationObserver(update).observe(box,{childList:true,subtree:true});
+ const availability=document.querySelector('[data-panel="availability"]');if(availability)new MutationObserver(update).observe(availability,{childList:true});update();
+})();
+
+// Keep the dashboard focused on three priorities; retain every tool on demand.
+(()=>{
+ const box=document.getElementById('dashRoleTools');if(!box)return;let scheduled=false;
+ function compact(){
+  const rows=[...box.querySelectorAll('.eh-overview-task')],scope=box.querySelector('.eh-overview-scope');if(!rows.length)return;
+  let more=box.querySelector(':scope>.hud-more-tasks');if(!more){more=document.createElement('details');more.className='hud-more-tasks';const summary=document.createElement('summary');summary.textContent='More Team Tools';more.append(summary,document.createElement('div'));box.append(more);}
+  const rest=more.lastElementChild,priority=row=>{const title=row.querySelector('strong')?.textContent||'';return title==='Next-Match Readiness'?0:title==='Availability Follow-Up'?1:title==='Player Concerns'?2:3;};
+  const sorted=rows.slice().sort((a,b)=>priority(a)-priority(b)),visible=new Set(sorted.slice(0,3));
+  for(const row of rows){const parent=visible.has(row)?box:rest;if(row.parentElement!==parent){if(parent===box)box.insertBefore(row,more);else rest.append(row);}}
+  if(scope&&scope.parentElement!==rest)rest.append(scope);more.hidden=!rest.childElementCount;
+ }
+ const update=()=>{if(scheduled)return;scheduled=true;requestAnimationFrame(()=>{scheduled=false;compact();});};new MutationObserver(update).observe(box,{childList:true,subtree:true});update();
+})();
+
+/* Shared HUD navigation and interaction layer; all data stays in the existing role scope. */
+(()=>{
+ const actions=document.querySelector('.top-actions'),account=$('openSelfProfile'),home=account.parentElement,marker=document.createComment('Desktop account control');home.insertBefore(marker,account);document.body.append($('accountDropup'));const mobile=matchMedia('(max-width:900px)');
+ function placeAccount(){const parent=mobile.matches?actions:home;if(account.parentElement!==parent){if(mobile.matches)actions.append(account);else marker.after(account);}account.classList.toggle('hud-mobile-profile',mobile.matches);positionAccountMenu();}mobile.addEventListener('change',placeAccount);placeAccount();
+ // Preserve the file input and analyzer handler for mouse, keyboard, and dropped logs.
+ const file=$('workshopFile'),zone=schEl('div','hud-drop-zone');file.closest('label').before(zone);zone.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V3m0 0-4.5 4.5M12 3l4.5 4.5M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5"/></svg><strong>Import Workshop Inspector Log</strong><small>Drop a .txt file here or choose a file · Up to 20 MB · Analyzed locally</small>';zone.append(file.closest('label'));zone.addEventListener('dragover',e=>{e.preventDefault();zone.classList.add('is-over');});zone.addEventListener('dragleave',()=>zone.classList.remove('is-over'));zone.addEventListener('drop',e=>{e.preventDefault();zone.classList.remove('is-over');const dropped=e.dataTransfer?.files?.[0];if(!dropped)return;if(!/\.txt$/i.test(dropped.name)){ $('workshopStatus').textContent='Choose a .txt Workshop log.';return;}zone.querySelector('small').textContent=dropped.name+' · Analyzing Locally';file.onchange({target:{files:[dropped]}});});
+ // Structured, viewport-clamped hover/focus card for the same slot details used by touch.
+ const grid=$('weekGrid'),legend=schEl('div','hud-heat-legend');for(const [level,label]of [['none','Nobody Available'],['level1','1–20%'],['level2','21–40%'],['level3','41–60%'],['level4','61–80%'],['level5','81–100%'],['full','All Starters Available']]){const key=schEl('span','',label);key.dataset.coverage=level;legend.append(key);}grid.after(legend);const popover=schEl('aside','hud-slot-popover');popover.hidden=true;popover.id='hudSlotPopover';popover.setAttribute('role','tooltip');document.body.append(popover);
+ function showSlot(button){if(s.avEditing)return;const slot=Number(button.dataset.slot),lines=availabilitySlotDetails(slot).split('\n');popover.replaceChildren(schEl('h3','',lines.shift()));for(const line of lines){const p=schEl('p',''),at=line.indexOf(':');p.append(schEl('strong','',line.slice(0,at)),document.createTextNode(line.slice(at+1).trim()));popover.append(p);}const coverage=availabilityCoverage(s.teamMembers||[],s.teamAvailability||[],slot);popover.append(schEl('small','eh-muted',coverage.available+' / '+coverage.total+' Players Available'+(coverage.allStarters?' · All Starters Ready':'')));popover.hidden=false;const rect=button.getBoundingClientRect(),height=popover.offsetHeight;popover.style.left=Math.min(Math.max(12,rect.left),innerWidth-popover.offsetWidth-12)+'px';popover.style.top=Math.max(12,Math.min(rect.bottom+8,innerHeight-height-12))+'px';button.setAttribute('aria-describedby',popover.id);}
+ for(const name of ['pointerover','focusin'])grid.addEventListener(name,e=>{const button=e.target.closest('button[data-slot]');if(button)showSlot(button);});for(const name of ['pointerleave','focusout'])grid.addEventListener(name,()=>popover.hidden=true);window.addEventListener('scroll',()=>popover.hidden=true,true);
+})();
+
+// Labels, role chips, primary actions, and dense dashboard columns share one presentation pass.
+(()=>{
+ const titleCase=text=>text.replace(/\b[a-z][a-z’'-]*\b/g,word=>word[0].toUpperCase()+word.slice(1));let pending=false;
+ function roles(node){if(!node)return;if(node.id==='sidebarRole'&&s.me){const role=highestAccountRole(s.me.roles||[]),label=roleLabel(role);if(node.dataset.primaryRole===role&&node.querySelector('.hud-role-chip')?.textContent===label)return;node.dataset.primaryRole=role;node.replaceChildren(schEl('span','hud-role-chip'+(role==='player'?' is-starter':''),label));node.classList.add('hud-role-chips');return;}if(node.querySelector('.hud-role-chip'))return;const text=node.textContent.trim();if(!text||text.includes('Clerk')||text.includes('Not signed'))return;const values=text.replace(/^Viewing as /,'').split(/\s*[·,]\s*/).filter(Boolean);if(values.some(v=>v.length>30))return;node.replaceChildren(...values.map(value=>schEl('span','hud-role-chip'+(/player|starter/i.test(value)?' is-starter':''),value)));node.classList.add('hud-role-chips');}
+
+ function dashboardColumns(){
+  const grid=document.querySelector('.eh-dashboard-grid');if(!grid)return;
+  let columns=[...grid.querySelectorAll(':scope>.hud-dashboard-column')];
+  if(columns.length!==2){columns=[schEl('div','hud-dashboard-column'),schEl('div','hud-dashboard-column')];grid.append(...columns);}
+  const eventCard=$('dashEvents')?.closest('article'),availability=$('hudDashboardAvailability');
+  if(eventCard&&eventCard.parentElement!==grid)grid.insertBefore(eventCard,columns[0]);
+  if(availability&&availability.parentElement!==grid)eventCard.after(availability);
+  const cards=[...grid.querySelectorAll('article.eh-panel')].filter(card=>card.parentElement===grid||card.parentElement.classList.contains('hud-dashboard-column')).filter(card=>card!==eventCard&&card!==availability);
+  if(innerWidth<=1000){for(const card of cards)if(card.parentElement!==grid)grid.append(card);return;}
+  const priority=['dashContacts','dashReports','dashResults','dashNews','dashMapPool','dashRoleTools'];
+  const rank=card=>{const index=priority.indexOf(card.dataset.overviewCard||'dashMapPool');return index<0?4:index;};
+  const heights=[0,0],wanted=[[],[]];
+  for(const card of cards.sort((a,b)=>rank(a)-rank(b))){
+   if(card.hidden||card.classList.contains('hidden'))continue;
+   const index=heights[0]<=heights[1]?0:1;wanted[index].push(card);heights[index]+=card.offsetHeight+18;
+  }
+  // Compare before moving so the mutation observer settles after a single layout pass.
+  wanted.forEach((list,column)=>list.forEach((card,index)=>{const before=columns[column].children[index];if(before!==card)columns[column].insertBefore(card,before||null);}));
+ }
+
+ function update(){pending=false;for(const button of document.querySelectorAll('.eh-btn,summary,[data-settings-tab],[data-studio-tab]')){if(button.children.length||button.closest('.eh-rich-notes,.eh-document')||button.id==='openSelfProfile')continue;const text=button.textContent.trim();if(text.length<70&&!/[.!?…]/.test(text)&&/[a-z]/.test(text)){const next=titleCase(text);if(next!==text)button.textContent=next;}}
+ for(const node of [$('sidebarRole'),$('pdRole'),...document.querySelectorAll('.eh-mini-profile .eh-mini-roles')])roles(node);
+ const groups=[...document.querySelectorAll('article.eh-panel,dialog.eh-panel')];const heroButtons=[...document.querySelectorAll('#dashNext .eh-next-actions .eh-btn')];heroButtons.forEach((button,index)=>button.classList.toggle('hud-primary',index===0));for(const group of groups){const buttons=[...group.querySelectorAll('.eh-btn')].filter(b=>b.closest('article.eh-panel,dialog.eh-panel')===group&&!b.matches('[data-close],[data-cancel],[data-profile],.eh-org-delete,.eh-news-edit')&&!b.closest('.eh-word-toolbar,.eh-attendance-row')&&!['Close','Cancel','Delete','Profile','View More'].some(word=>b.textContent.trim().startsWith(word)));const visible=buttons.filter(b=>b.getClientRects().length);const chosen=visible.find(b=>b.closest('.eh-next-actions'))||visible.find(b=>b.type==='submit')||visible[0];for(const button of group.querySelectorAll('.eh-btn.hud-primary'))if(button!==chosen&&button.closest('article.eh-panel,dialog.eh-panel')===group)button.classList.remove('hud-primary');if(chosen)chosen.classList.add('hud-primary');}
+ const news=$('dashNews');if(news){const publish=[...news.querySelectorAll('button')].find(b=>b.textContent.trim()==='Publish Team News'),card=news.closest('article'),header=card?.querySelector(':scope>.eh-row')||card?.querySelector('h2')?.parentElement;if(publish&&header){const old=card?.querySelector('.hud-news-publish');if(old&&old!==publish)old.remove();}if(publish&&header){publish.textContent='+';publish.setAttribute('aria-label','Publish Team News');publish.title='Publish Team News';publish.classList.add('hud-news-publish');header.append(publish);}const items=[...news.querySelectorAll(':scope>.eh-item')];items.forEach((n,i)=>{n.classList.add('hud-news-item');if(news.dataset.expanded!=='true')n.hidden=i>=2;});if(items.length&&!news.querySelector('.hud-news-more')){const more=schEl('button','eh-btn tiny hud-news-more','View More');more.type='button';more.onclick=()=>{const dialog=schEl('dialog','eh-dialog eh-panel eh-coordination hud-news-reader'),header=schEl('div','eh-row'),close=schEl('button','eh-btn tiny','Close');dialog.setAttribute('aria-label','Team News');close.type='button';close.onclick=()=>dialog.close();header.append(schEl('h2','','Team News'),close);dialog.append(header);for(const item of items){const copy=item.cloneNode(true);copy.hidden=false;copy.querySelector('.eh-news-edit')?.remove();dialog.append(copy);}dialog.onclose=()=>dialog.remove();document.body.append(dialog);dialog.showModal();};news.append(more);}}
+
+ dashboardColumns();}
+ function queue(){if(pending)return;pending=true;requestAnimationFrame(update);}new MutationObserver(queue).observe(document.body,{childList:true,subtree:true});window.addEventListener('resize',queue);queue();
+})();
+
+/* Base44 preview's compact notification popover, using the existing authenticated inbox. */
+(()=>{
+ const bell=$('notificationsButton');
+ const preferencesInbox=openNotifications;
+ bell.setAttribute('aria-haspopup','dialog');bell.setAttribute('aria-expanded','false');bell.setAttribute('aria-controls','hudNotificationPopover');
+ function close(){const pop=$('hudNotificationPopover');pop?.remove();bell.setAttribute('aria-expanded','false');}
+ function relative(value){const delta=Math.max(0,Date.now()-Date.parse(value));return delta<60000?'Just now':delta<3600000?Math.floor(delta/60000)+'m ago':delta<86400000?Math.floor(delta/3600000)+'h ago':Math.floor(delta/86400000)+'d ago';}
+ openNotifications=async function(){
+  if($('hudNotificationPopover')){close();return;}if(!s.me)return;
+  setAccountMenu(false);const scope=profileScope(),pop=schEl('section','hud-notification-popover');pop.id='hudNotificationPopover';pop.dataset.scope=scope;pop.dataset.access=s.profileAccessKey||'';pop.setAttribute('role','dialog');pop.setAttribute('aria-label','Notifications');
+  const header=schEl('header',''),count=schEl('small',''),dismiss=schEl('button','hud-inbox-close','×');dismiss.type='button';dismiss.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>';dismiss.setAttribute('aria-label','Close Notifications');dismiss.onclick=close;header.append(schEl('strong','','Notifications'),count,dismiss);
+  const list=schEl('div','hud-notification-list'),status=schEl('p','hud-inbox-status','Loading notifications…');status.setAttribute('role','status');const footer=schEl('footer',''),preferences=schEl('button','','Preferences');preferences.type='button';preferences.onclick=()=>{close();void preferencesInbox();};footer.append(preferences);pop.append(header,list,status,footer);document.querySelector('.top-actions').append(pop);bell.setAttribute('aria-expanded','true');dismiss.focus({preventScroll:true});
+  try{
+   await refreshNotifications(true);if(!pop.isConnected||scope!==profileScope())return;
+   const items=s.notifications?.items||[];status.textContent=items.length?'':"You're all caught up.";
+   function counts(){const unread=items.filter(item=>!item.read).length;count.textContent=unread+' New';count.hidden=!unread;const badge=bell.querySelector('.eh-notification-badge');if(badge){badge.textContent=unread>99?'99+':String(unread);badge.hidden=!unread;}bell.setAttribute('aria-label','Open notifications, '+unread+' unread');}
+   counts();
+   for(const item of items){
+    const row=schEl('button','hud-notification-item'+(item.read?'':' is-unread'));row.type='button';row.append(schEl('strong','',item.title),schEl('span','',item.message));
+    const timestamp=item.createdAt||item.startsAt;if(timestamp&&Number.isFinite(Date.parse(timestamp))){const time=schEl('time','',Date.parse(timestamp)>Date.now()?fmt(timestamp):relative(timestamp));time.dateTime=timestamp;row.append(time);}
+    row.onclick=async()=>{
+     if(row.disabled)return;row.disabled=true;status.textContent='';
+     try{
+      if(!item.read){await api('/me/notifications/read','POST',{ids:[item.id]});if(scope!==profileScope())return;item.read=true;row.classList.remove('is-unread');counts();}
+      const team=s.teams.find(team=>team.id===item.teamId);
+      if(item.proposalId){if(!team)throw Error('Team access changed. Refresh the page.');close();await selectTeam(team);go('availability');$('practiceSuggestions')?.scrollIntoView({block:'start'});}
+      else if(item.eventId){if(!team)throw Error('Team access changed. Refresh the page.');const events=await overviewRead('/teams/'+encodeURIComponent(team.id)+'/events'),event=events.find(event=>event.id===item.eventId);if(!event)throw Error('This event is no longer available.');close();await openEventPlan(event,team);}
+     }catch(error){if(pop.isConnected)status.textContent=error.message;}finally{row.disabled=false;}
+    };list.append(row);
+   }
+   const unread=items.filter(item=>!item.read);
+   if(unread.length){const all=schEl('button','','Mark All as Read');all.type='button';all.onclick=async()=>{all.disabled=true;try{await api('/me/notifications/read','POST',{ids:items.filter(item=>!item.read).map(item=>item.id)});if(scope!==profileScope())return;items.forEach(item=>item.read=true);list.querySelectorAll('.is-unread').forEach(row=>row.classList.remove('is-unread'));counts();all.remove();}catch(error){status.textContent=error.message;all.disabled=false;}};footer.prepend(all);}
+  }catch(error){if(pop.isConnected)status.textContent='Could not load notifications: '+error.message;}
+ };
+ document.addEventListener('pointerdown',event=>{const pop=$('hudNotificationPopover');if(pop&&!pop.contains(event.target)&&!bell.contains(event.target))close();});
+ document.addEventListener('keydown',event=>{if(event.key==='Escape'&&$('hudNotificationPopover')){close();bell.focus();}});
+ $('roleViewSelect').addEventListener('change',close);document.addEventListener('hud-close-notifications',close);
+ new MutationObserver(()=>{const pop=$('hudNotificationPopover');if(pop&&(!s.me||pop.dataset.scope!==profileScope()||pop.dataset.access!==(s.profileAccessKey||'')))close();}).observe(document.body,{childList:true,subtree:true});
+})();
+
+/* Base44's inline command search: scoped member/team groups and keyboard selection. */
+(()=>{
+ const bell=$('notificationsButton'),wrap=schEl('div','hud-global-search'),symbol=schEl('span','hud-global-search-icon');
+ symbol.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-4.35-4.35M19.5 10.5a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>';
+ const input=document.createElement('input');input.id='hudGlobalSearch';input.type='search';input.placeholder='Search members, teams…';input.setAttribute('aria-label','Search Members, Teams, and Pages');input.setAttribute('role','combobox');input.setAttribute('aria-autocomplete','list');input.setAttribute('aria-expanded','false');input.setAttribute('aria-controls','hudGlobalSearchResults');input.autocomplete='off';
+ const apple=/Mac|iPhone|iPad|iPod/i.test(navigator.userAgentData?.platform||navigator.platform||navigator.userAgent),shortcut=schEl('kbd','',apple?'⌘K':'Ctrl K');input.setAttribute('aria-keyshortcuts',apple?'Meta+k':'Control+k');const mobile=schEl('button','hud-search-toggle');mobile.type='button';mobile.setAttribute('aria-label','Search EsportsHub');mobile.innerHTML=symbol.innerHTML;
+ const results=schEl('div','hud-global-search-results');results.id='hudGlobalSearchResults';results.setAttribute('role','listbox');results.setAttribute('aria-label','Search Results');results.hidden=true;wrap.append(symbol,input,shortcut,mobile,results);bell.before(wrap);
+ let generation=0,cacheKey='',peoplePromise=null,people=[],selected=-1;
+ function close(){generation++;results.hidden=true;wrap.classList.remove('is-searching');input.setAttribute('aria-expanded','false');input.removeAttribute('aria-activedescendant');selected=-1;}
+ function open(){if(!s.me)return;wrap.classList.add('is-searching');input.focus();input.select();void draw();}
+ async function draw(){
+  if(!s.me)return;document.dispatchEvent(new CustomEvent('hud-close-notifications'));setAccountMenu(false);
+  const scope=profileScope(),request=++generation,query=input.value.trim().toLowerCase(),key=scope+'|'+s.profileAccessKey+'|'+s.teams.map(team=>team.id).join(',');
+  if(cacheKey!==key){cacheKey=key;people=[];peoplePromise=null;}
+  results.hidden=false;wrap.classList.add('is-searching');input.setAttribute('aria-expanded','true');input.removeAttribute('aria-activedescendant');selected=-1;results.replaceChildren();
+  const groups=[];
+  const pages=[...document.querySelectorAll('[data-screen]')].filter(link=>!link.classList.contains('hidden')&&!link.hidden&&(!query||link.textContent.toLowerCase().includes(query))).map(link=>({title:link.textContent.trim(),detail:'Page',run:()=>go(link.dataset.screen)}));if(pages.length)groups.push(['Pages',pages.slice(0,query?6:4)]);
+  const teams=s.teams.filter(team=>!query||(team.name+' '+team.game_name).toLowerCase().includes(query)).map(team=>({title:team.game_name+' — '+team.name,detail:'Team',run:async()=>{await selectTeam(team);go(guestOnly()?'dashboard':'teams');}}));if(teams.length)groups.push(['Teams',teams.slice(0,6)]);
+  if(query){
+   if(!peoplePromise){peoplePromise=Promise.allSettled(s.teams.map(async team=>{const data=await overviewRead('/teams/'+encodeURIComponent(team.id));return(data.members||[]).map(member=>({member,team}));})).then(rows=>rows.flatMap(row=>row.status==='fulfilled'?row.value:[]));}
+   results.append(schEl('p','hud-search-status','Searching your teams…'));const loaded=await peoplePromise;
+   if(request!==generation||scope!==profileScope()||key!==cacheKey||document.activeElement!==input)return;people=loaded;
+   const seen=new Set(),members=[];for(const {member,team}of people){const id=String(member.user_id||member.id);if(seen.has(id)||member.role==='guest')continue;seen.add(id);const realAllowed=!guestTeam(team)||!!member.public_real_name,title=member.username?'@'+member.username:realAllowed?(member.display_name||member.name||'Member'):'Username not set',real=realAllowed?(member.display_name||member.name||''):'';if(!(title+' '+real).toLowerCase().includes(query))continue;members.push({title,detail:[real!==title?real:'',team.name].filter(Boolean).join(' · '),run:async()=>{await selectTeam(team);go(guestOnly()?'dashboard':'teams');if(!guestTeam(team)){const button=[...$('members').querySelectorAll('[data-profile]')].find(button=>button.dataset.profile===id);button?.click();}}});}if(members.length)groups.push(['Members',members.slice(0,8)]);
+  }
+  if(request!==generation||scope!==profileScope())return;results.replaceChildren();let count=0;
+  for(const [label,items]of groups){results.append(schEl('div','hud-search-category',label));for(const item of items){const row=schEl('button','hud-search-option');row.type='button';row.id='hudSearchOption'+count++;row.setAttribute('role','option');row.setAttribute('aria-selected','false');row.tabIndex=-1;row.append(schEl('strong','',item.title),schEl('small','',item.detail));row.onclick=async()=>{close();input.blur();try{await item.run();}catch(error){notify(error.message,true);}};results.append(row);}}
+  if(!count)results.append(schEl('p','hud-search-status','No matching members, teams, or pages.'));
+ }
+ input.oninput=()=>void draw();input.onfocus=()=>void draw();mobile.onclick=open;
+ input.onkeydown=event=>{const options=[...results.querySelectorAll('[role=option]')];if(event.key==='Escape'){event.preventDefault();close();input.blur();mobile.focus();}else if(['ArrowDown','ArrowUp'].includes(event.key)){event.preventDefault();if(results.hidden){void draw();return;}selected=options.length?(selected+(event.key==='ArrowDown'?1:-1)+options.length)%options.length:-1;options.forEach((row,index)=>row.setAttribute('aria-selected',String(index===selected)));if(selected>=0){input.setAttribute('aria-activedescendant',options[selected].id);options[selected].scrollIntoView({block:'nearest'});}}else if(event.key==='Enter'&&options.length){event.preventDefault();options[Math.max(0,selected)].click();}};
+ document.addEventListener('keydown',event=>{if(event.key.toLowerCase()==='k'&&(apple?event.metaKey&&!event.ctrlKey:event.ctrlKey&&!event.metaKey)&&!event.altKey&&!document.querySelector('dialog[open]')){event.preventDefault();open();}});
+ document.addEventListener('pointerdown',event=>{if(!wrap.contains(event.target))close();});wrap.addEventListener('focusout',event=>{if(!wrap.contains(event.relatedTarget))close();});$('roleViewSelect').addEventListener('change',()=>{close();people=[];peoplePromise=null;cacheKey='';});
+ new MutationObserver(()=>{if(!results.hidden&&(!s.me||cacheKey!==profileScope()+'|'+s.profileAccessKey+'|'+s.teams.map(team=>team.id).join(',')))close();}).observe(document.body,{childList:true,subtree:true});
+})();
+
+// Keep the original greeting size unless the complete name needs more room.
+(()=>{
+ const heading=$('welcome')?.closest('h1');if(!heading)return;let queued=false;
+ function fit(){queued=false;heading.style.removeProperty('font-size');heading.title=heading.textContent.trim();const width=heading.clientWidth,content=heading.scrollWidth,preferred=parseFloat(getComputedStyle(heading).fontSize);if(width&&content>width)heading.style.setProperty('font-size',Math.max(8,Math.floor(preferred*width/content*.99))+'px','important');}
+ function queue(){if(queued)return;queued=true;requestAnimationFrame(fit);}
+ new ResizeObserver(queue).observe(heading.parentElement);new MutationObserver(queue).observe(heading,{childList:true,subtree:true});window.addEventListener('resize',queue);document.fonts?.ready.then(queue);queue();
+})();
+
+/* Profile studio: common fields up front, every advanced control retained. */
+(()=>{
+ const form=$('profileForm'),base=$('profile-studio-panel-0'),layout=form?.querySelector('.eh-studio-layout');if(!form||!base||!layout)return;
+ form.classList.add('hud-profile-editor');
+ const header=schEl('div','hud-profile-editor-header'),banner=schEl('div','hud-editor-banner'),change=schEl('button','eh-btn tiny','Change Banner');change.type='button';change.onclick=()=>{$('profile-studio-tab-1').click();$('pfBanner').focus();};banner.append(change);
+ const identity=schEl('div','hud-editor-identity'),avatar=schEl('button','hud-editor-avatar'),copy=schEl('div','hud-editor-identity-copy'),name=schEl('strong'),handle=schEl('small');avatar.type='button';avatar.setAttribute('aria-label','Change Profile Picture');avatar.onclick=()=>{$('profile-studio-tab-1').click();$('pfAvatar').click();};copy.append(name,handle);identity.append(avatar,copy,$('pfSave'));header.append(banner,identity);form.prepend(header);
+ const advanced=schEl('details','hud-account-identity'),summary=schEl('summary','','Account & Game Identity');advanced.append(summary);for(const child of [...base.children])if(child.tagName!=='SUMMARY'&&!child.classList.contains('eh-studio-section-heading'))advanced.append(child);
+ const basics=schEl('div','hud-profile-basics'),row=schEl('div','eh-grid two');for(const id of ['pfDisplayName','pfPronouns']){const label=$(id)?.closest('label');if(label)row.append(label);}basics.append(row);for(const id of ['pfBio','pfPresence']){const label=$(id)?.closest('label');if(label)basics.append(label);}base.append(basics,advanced);
+ const first=$('profile-studio-tab-0').querySelector('span');if(first)first.textContent='Profile';const title=base.querySelector('h3');if(title)title.textContent='Profile';const descriptions=['Choose how you appear to teammates.','Choose your profile images.','Add your connected accounts and links.','Customize your About Me GIF.','Set your custom status and expiry.','Style your profile with colors, frames, and effects.'];for(let i=0;i<descriptions.length;i++){const panel=$('profile-studio-panel-'+i),description=panel?.querySelector('.eh-studio-section-heading p');if(description)description.textContent=descriptions[i];$('profile-studio-tab-'+i).title=descriptions[i];}
+ const select=$('pfPresence'),choices=schEl('div','hud-editor-presence');choices.setAttribute('role','group');choices.setAttribute('aria-label','Presence Status');select.hidden=true;
+ for(const [value,label]of [['online','Online'],['idle','Away'],['dnd','Do Not Disturb'],['invisible','Invisible']]){const button=schEl('button','',label);button.type='button';button.dataset.presence=value;button.onclick=()=>{select.value=value;select.dispatchEvent(new Event('input',{bubbles:true}));select.dispatchEvent(new Event('change',{bubbles:true}));};choices.append(button);}select.after(choices);
+ const preview=layout.querySelector('.eh-studio-preview');if(preview){const disclosure=schEl('details','hud-full-profile-preview');disclosure.append(schEl('summary','','View Full Profile Preview'),preview);layout.after(disclosure);}
+ function sync(){const values=customizationFields();name.textContent=values.display_name||[$('pfFirst').value,$('pfLast').value].filter(Boolean).join(' ')||'Your Profile';handle.textContent=[$('pfUser').value?'@'+$('pfUser').value:'',values.pronouns].filter(Boolean).join(' · ');const image=$('pfAvatarPreview').querySelector('img');avatar.replaceChildren();if(image)avatar.append(image.cloneNode(true));else avatar.textContent=name.textContent.split(/\s+/).map(x=>x[0]).slice(0,2).join('');applyBanner(banner,bannerValue());if(bannerValue()==='upload')banner.style.backgroundImage=$('pfBannerPreview').style.backgroundImage;applyProfileStyle(header,avatar,banner,values);for(const button of choices.children)button.setAttribute('aria-pressed',String(button.dataset.presence===select.value));}
+ const render=renderProfilePreview;renderProfilePreview=function(...args){const result=render.apply(this,args);sync();return result;};form.addEventListener('input',sync);form.addEventListener('change',sync);new MutationObserver(sync).observe($('pfAvatarPreview'),{childList:true,subtree:true});new MutationObserver(sync).observe($('pfBannerPreview'),{attributes:true,attributeFilter:['style']});sync();
+})();
