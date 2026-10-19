@@ -633,3 +633,297 @@ body .eh-assignment-badges .eh-roster-role-tag.is-starter{color:var(--hud-blue)!
 @media(min-width:1001px){#dashboardShell #pageContent .eh-dashboard-grid #dashEvents{flex:1 1 0!important;min-height:0!important;overflow:hidden!important}}
 dialog.eh-guest-event{width:min(680px,calc(100vw - 24px));max-width:calc(100vw - 24px);max-height:calc(100dvh - 24px);box-sizing:border-box;overflow-y:auto;overflow-wrap:anywhere;color:var(--ink);background:var(--surface)}
 dialog.eh-vod-insert.eh-panel .eh-btn:not([type=submit]){background:var(--bg)!important;color:var(--ink)!important;border:1px solid var(--border)!important;box-shadow:none!important}
+
+/* One dashboard structure across teams and public/member views. */
+#dashboardShell #dashNext>.eh-next-content{grid-column:2;align-self:start;width:100%;box-sizing:border-box}
+#dashboardShell #dashNext:not(:has(>.eh-next-date))>.eh-next-content{grid-column:1/-1}
+#dashboardShell #dashNext .eh-next-content>:is(h2,h3,.eh-next-time,.eh-next-meta,.eh-next-note){order:0!important;position:static!important}
+#dashboardShell #dashNext .eh-next-content>.eh-next-actions{order:1!important;display:flex!important;flex-direction:row!important;position:static!important;margin:14px 0 0!important;gap:8px!important}
+#dashboardShell #dashNext .eh-next-content>.eh-next-personal{order:2!important}
+#dashboardShell #dashMapPoolCard>.eh-row{display:flex!important;align-items:center!important;justify-content:space-between!important;flex-wrap:wrap;gap:10px;margin-bottom:14px}
+#dashboardShell #dashMapPoolCard>.eh-row>h2{flex:1 1 140px;min-width:0;margin:0!important}
+#dashboardShell #dashMapPoolCard>.eh-row>.eh-btn{flex:0 0 auto;margin:0!important;position:static!important;min-height:36px}
+.eh-dashboard-maps-dialog{width:min(1050px,calc(100vw - 32px));max-height:90dvh;overflow:auto;box-sizing:border-box}
+.eh-dashboard-maps-dialog>header{margin-bottom:18px;gap:16px}
+.eh-dashboard-maps-dialog .eh-map-gallery-groups{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+.eh-dashboard-maps-dialog .eh-map-gallery-category{min-width:0}
+/* The icon and native select share a single grid cell, including its margin. */
+.eh-vod-mode-select{display:grid;align-items:center}
+.eh-vod-mode-select select,.eh-vod-mode-select [data-mode-icon]{grid-area:1/1}
+.eh-vod-mode-select [data-mode-icon]{position:relative;inset:auto;align-self:center;justify-self:start;margin:6px 0 0 11px;width:17px;height:17px;z-index:1;transform:none}
+.eh-rich-notes .eh-vod-replay-block{display:flex;align-items:center;gap:14px;padding:16px;margin:12px 0;border:1px solid var(--border);border-left:3px solid var(--hud-highlight);background:var(--surface-alt);color:var(--ink);box-sizing:border-box;max-width:100%;clear:both}
+.eh-vod-replay-icon{display:grid;place-items:center;flex:0 0 38px;width:38px;height:38px;background:var(--surface);color:var(--hud-highlight);border:1px solid var(--border)}
+.eh-vod-replay-icon svg{width:24px;height:24px}
+.eh-vod-replay-info{display:flex;flex-direction:column;gap:5px;min-width:0;flex:1}
+.eh-vod-replay-info small{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.eh-vod-replay-info strong{font-size:16px;line-height:1.25;overflow-wrap:anywhere}
+.eh-vod-replay-block code{font-family:inherit;font-size:15px;font-weight:700;letter-spacing:.06em;background:var(--bg);border:1px solid var(--border);padding:9px 12px;overflow-wrap:anywhere;max-width:50%;box-sizing:border-box;user-select:all}
+@media(max-width:600px){
+ #dashboardShell #dashNext>.eh-next-content{grid-column:1/-1}
+ .eh-dashboard-maps-dialog .eh-map-gallery-groups{grid-template-columns:minmax(0,1fr)}
+ .eh-rich-notes .eh-vod-replay-block{gap:10px;padding:12px;flex-wrap:wrap}
+ .eh-vod-replay-block code{max-width:100%;margin-left:48px}
+}
+/* Square avatar decorations: draw inside the clipped frame so borders never disappear. */
+body :is(.eh-pd-avatar,.eh-preview-avatar,.eh-mini-avatar,.hud-editor-avatar)[data-frame]{--avatar-cut:9px;position:relative;isolation:isolate;border-radius:0!important;outline:0!important;clip-path:polygon(0 0,calc(100% - var(--avatar-cut)) 0,100% var(--avatar-cut),100% 100%,0 100%)!important;overflow:hidden!important;box-sizing:border-box;border:0!important;box-shadow:none!important;background:var(--profile-primary)!important}
+body :is(.eh-pd-avatar,.eh-preview-avatar,.eh-mini-avatar,.hud-editor-avatar)[data-frame] img{border-radius:0!important;width:100%;height:100%;object-fit:cover;position:absolute;inset:0}
+body :is(.eh-pd-avatar,.eh-preview-avatar,.eh-mini-avatar,.hud-editor-avatar)[data-frame]::before{content:'';position:absolute;inset:0;border:3px solid var(--profile-accent);z-index:2;pointer-events:none;box-sizing:border-box}
+body :is(.eh-pd-avatar,.eh-preview-avatar,.eh-mini-avatar)[data-frame=none]::before{border-color:var(--profile-surface,var(--surface))}
+body :is(.eh-pd-avatar,.eh-preview-avatar,.eh-mini-avatar,.hud-editor-avatar)[data-frame]::after{content:none;pointer-events:none}
+body :is(.eh-pd-avatar,.eh-preview-avatar,.eh-mini-avatar)[data-frame=double]::before{border:6px double var(--profile-accent)}
+body :is(.eh-pd-avatar,.eh-preview-avatar,.eh-mini-avatar)[data-frame=dashed]::before{border-style:dashed}
+body :is(.eh-pd-avatar,.eh-preview-avatar,.eh-mini-avatar)[data-frame=neon]::before{border-width:2px;box-shadow:inset 0 0 10px var(--profile-accent)}
+body :is(.eh-pd-avatar,.eh-preview-avatar,.eh-mini-avatar)[data-frame=gradient]::before{border-image:linear-gradient(135deg,var(--profile-primary),var(--profile-accent)) 1;border-width:5px}
+body :is(.eh-pd-avatar,.eh-preview-avatar,.eh-mini-avatar)[data-frame=hex]::before{border-width:5px;border-color:var(--profile-accent) var(--profile-primary)}
+body :is(.eh-pd-avatar,.eh-preview-avatar,.eh-mini-avatar)[data-frame=diamond]::before{border-width:4px;border-image:repeating-linear-gradient(45deg,var(--profile-accent) 0 6px,var(--profile-primary) 6px 12px) 1}
+body :is(.eh-pd-avatar,.eh-preview-avatar,.eh-mini-avatar)[data-frame=shield]::before{border-width:2px 2px 7px}
+body :is(.eh-pd-avatar,.eh-preview-avatar,.eh-mini-avatar)[data-frame=pixel]::before{border:5px dotted var(--profile-accent)}
+body :is(.eh-pd-avatar,.eh-preview-avatar,.eh-mini-avatar)[data-frame=orbit]::before{border:2px solid var(--profile-accent);inset:3px;box-shadow:inset 0 0 0 2px var(--profile-primary)}
+body :is(.eh-pd-avatar,.eh-preview-avatar,.eh-mini-avatar,.hud-editor-avatar):is([data-frame=sparkle],[data-frame=crown])::after{content:'✦';position:absolute;display:grid;place-items:center;right:2px;bottom:2px;top:auto;left:auto;width:22px;height:22px;line-height:1;font-size:18px;background:var(--profile-primary);border:1px solid var(--profile-accent);border-radius:0;transform:none;color:var(--profile-accent);z-index:3}
+body :is(.eh-pd-avatar,.eh-preview-avatar,.eh-mini-avatar)[data-frame=crown]::after{content:'♛';right:auto;left:2px;top:2px;bottom:auto}
+
+/* Updated pages preview: shared card, header, button and list geometry. */
+#dashboardShell #pageContent{padding:26px!important}
+#dashboardShell #pageContent [data-panel]>.eh-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:12px 18px;flex-wrap:wrap;margin:0 0 18px!important}
+#dashboardShell #pageContent [data-panel]>.eh-heading>.eh-kicker{flex:0 0 100%}
+#dashboardShell #pageContent [data-panel]>.eh-heading>h1{margin:0!important}
+#dashboardShell #pageContent [data-panel]>.eh-heading>p{order:5;flex-basis:100%;margin:0!important}
+#dashboardShell #pageContent [data-panel]>.eh-heading>.eh-btn{margin-left:auto}
+#dashboardShell #pageContent .eh-panel{padding:18px!important}
+#dashboardShell #pageContent .eh-panel>.eh-row:first-child{gap:10px;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border)}
+#dashboardShell #pageContent .eh-panel>.eh-row:first-child h2{font-size:17px!important;line-height:1.15!important;margin:0!important}
+#dashboardShell .eh-btn:not(.hud-primary):not([type=submit]){clip-path:none!important;background:transparent!important;box-shadow:inset 0 0 0 1px var(--border)!important;color:var(--ink)!important;border:0!important}
+#dashboardShell .eh-btn.hud-primary,dialog .eh-btn[type=submit]{clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px))!important}
+#dashboardShell .eh-btn:focus-visible,dialog .eh-btn:focus-visible{outline:2px solid var(--hud-highlight)!important;outline-offset:3px}
+#dashboardShell .eh-dashboard-grid{display:grid!important;grid-template-columns:minmax(0,1fr)!important;gap:18px!important}
+.hud-dashboard-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-items:start;min-width:0}
+.hud-dashboard-pair.is-main{grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);align-items:stretch}
+.hud-dashboard-pair>.eh-panel{min-width:0;max-width:100%;margin:0!important;width:auto!important}
+.hud-dashboard-pair>.eh-panel:only-child{grid-column:1/-1}
+.hud-dashboard-pair>.eh-panel:not(.hidden):not([hidden]):not(:has(~.eh-panel:not(.hidden):not([hidden]))):first-child{min-width:0}
+#dashboardShell #pageContent .eh-next-session{padding:24px!important}
+#dashboardShell .eh-next-session #dashNext{grid-template-columns:92px minmax(0,1fr)!important;gap:24px!important}
+#dashboardShell .eh-next-date{width:92px;padding:10px 0!important;box-sizing:border-box}
+#dashboardShell .eh-next-date strong{font-size:44px!important;line-height:1!important}
+#dashboardShell .eh-next-content .eh-next-title{font-size:clamp(26px,3vw,42px)!important;line-height:.98!important;margin:0 0 8px!important}
+#dashboardShell .eh-next-content .eh-next-meta{order:-1!important;margin:0 0 10px!important}
+#dashboardShell #pageContent .hud-team-layout{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(300px,1fr)!important;gap:18px;align-items:start}
+#dashboardShell .hud-team-layout #members{display:block!important}
+#dashboardShell .hud-team-layout .eh-roster-member{flex-wrap:wrap}
+#dashboardShell .hud-team-layout .eh-roster-actions{max-width:100%;margin-left:auto}
+#dashboardShell .hud-team-layout .eh-map-gallery-groups{grid-template-columns:minmax(0,1fr)!important}
+#dashboardShell .hud-team-layout .eh-map-photo-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+#dashboardShell .hud-team-layout .eh-map-photo-card img{aspect-ratio:16/9!important;min-height:0!important;height:auto!important}
+#dashboardShell .hud-team-layout .eh-map-photo-card figcaption{font-size:10px!important;padding:6px!important}
+#dashboardShell .hud-agenda-layout{grid-template-columns:minmax(0,1.5fr) minmax(0,1fr)!important;gap:18px}
+#dashboardShell .hud-agenda-index{padding:7px 18px!important;background:var(--surface);border:1px solid var(--border)}
+#dashboardShell .hud-agenda-choice{padding:12px 0!important;border-bottom:1px solid var(--border)!important;gap:12px}
+#dashboardShell .hud-agenda-choice[aria-current=true]{background:var(--hud-nav-soft)!important;box-shadow:inset 3px 0 var(--hud-highlight)!important;padding-left:12px!important}
+#dashboardShell .hud-agenda-detail>.sch-event{margin:0!important;padding:18px!important}
+#dashboardShell .eh-concerns-layout{display:block!important}
+#dashboardShell .eh-concerns-layout>#review{margin:0!important}
+#dashboardShell #review> .eh-row{display:none!important}
+.hud-concern-workspace{display:grid;grid-template-columns:minmax(220px,1fr) minmax(0,2fr);gap:18px;align-items:start}
+.hud-concern-library,.hud-concern-detail{min-width:0}
+.hud-concern-library{padding-right:18px;border-right:1px solid var(--border)}
+.hud-concern-tabs{display:flex;margin:12px 0;border:1px solid var(--border)}
+.hud-concern-tabs button{flex:1;clip-path:none!important;padding:6px 12px;background:none;color:var(--muted);border:0;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer}
+.hud-concern-tabs button[aria-pressed=true]{background:var(--hud-purple);color:var(--game-button-ink,#fff)}
+.hud-concern-choice{display:flex;flex-wrap:wrap;gap:6px;align-items:center;text-align:left;width:100%;padding:12px;border:0;border-bottom:1px solid var(--border);background:none;color:var(--ink);clip-path:none!important;cursor:pointer;font:inherit}
+.hud-concern-choice strong,.hud-concern-choice small{flex:0 0 100%;overflow-wrap:anywhere}
+.hud-concern-choice[aria-current=true]{background:var(--hud-nav-soft);box-shadow:inset 3px 0 var(--hud-highlight)}
+.eh-conversation-thread>[data-thread]>.eh-concern-card{border:0;border-left:3px solid var(--border);background:none;padding:6px 0 6px 12px;margin:14px 0;border-radius:0}
+.eh-conversation-thread>[data-thread]>.eh-concern-card:has(strong){border-left-color:var(--hud-highlight)}
+.eh-conversation-thread>.eh-row{padding-bottom:12px;border-bottom:1px solid var(--border)}
+.eh-conversation-thread>.eh-row h2{font-size:20px!important}
+.eh-conversation-thread .eh-document{min-height:120px!important}
+.eh-concern-composer{width:min(850px,calc(100vw - 24px));padding:18px!important}
+.eh-concern-composer>.eh-concern-compose{border:0!important;padding:0!important;margin:0!important;background:none!important;box-shadow:none!important}
+.eh-concern-composer>.eh-concern-compose::before,.eh-concern-composer>.eh-concern-compose::after{display:none}
+.hud-page-actions{display:flex;gap:10px;flex-wrap:wrap}
+#dashboardShell .hud-drop-zone{padding:30px!important;border:1px dashed var(--hud-highlight)!important;background:var(--bg)!important;margin:18px 0!important}
+#dashboardShell .eh-report-library .eh-report-card{padding:18px!important;border:1px solid var(--border)!important;background:var(--surface)!important}
+#dashboardShell .hud-report-layout{grid-template-columns:minmax(220px,1fr) minmax(0,2fr)!important;gap:18px!important}
+#dashboardShell .hud-report-choice{border-bottom:1px solid var(--border)!important;padding:12px!important}
+#dashboardShell .eh-word-toolbar{padding:8px!important;gap:4px!important;background:var(--bg)!important}
+#dashboardShell .eh-document,dialog .eh-document{padding:16px!important;border:1px solid var(--border)!important;background:var(--bg)!important}
+#dashboardShell .eh-organization-directory{grid-template-columns:minmax(0,1.5fr) minmax(0,1fr)!important;gap:18px!important}
+#dashboardShell .eh-org-team-row,#dashboardShell .eh-org-game-row{padding:11px 0!important;border:0;border-bottom:1px solid var(--border);background:none!important}
+#dashboardShell .eh-settings-layout{grid-template-columns:230px minmax(0,1fr)!important;gap:18px!important}
+#dashboardShell .hud-profile-editor-header{display:none!important}
+#dashboardShell .hud-profile-editor .eh-studio-layout{display:grid!important;grid-template-columns:180px minmax(0,1fr)!important;gap:18px;align-items:start}
+#dashboardShell .hud-profile-editor .eh-studio-tabs{display:flex!important;flex-direction:column!important;padding:0!important;border:1px solid var(--border)!important;gap:0!important}
+#dashboardShell .hud-profile-editor .eh-studio-tabs>button{width:100%!important;flex:none!important;text-align:left!important;justify-content:flex-start!important;padding:12px!important;border-bottom:1px solid var(--border)!important}
+#dashboardShell .hud-profile-editor .eh-studio-tabs>button[aria-selected=true]{background:var(--hud-nav-soft)!important;box-shadow:inset 3px 0 var(--hud-highlight)!important}
+#dashboardShell .hud-profile-editor [role=tabpanel]{padding:18px!important;border:1px solid var(--border);background:var(--surface)!important}
+@media(max-width:1100px){#dashboardShell #pageContent .hud-team-layout{grid-template-columns:minmax(0,1fr)!important}.hud-concern-workspace{grid-template-columns:minmax(180px,1fr) minmax(0,1.6fr)}#dashboardShell .hud-profile-editor .eh-studio-layout{grid-template-columns:minmax(0,1fr)!important}#dashboardShell .hud-profile-editor .eh-studio-tabs{flex-direction:row!important;flex-wrap:wrap}#dashboardShell .hud-profile-editor .eh-studio-tabs>button{width:auto!important;flex:1 1 140px!important}}
+@media(max-width:900px){#dashboardShell .hud-agenda-layout,#dashboardShell .eh-organization-directory,#dashboardShell .hud-report-layout,#dashboardShell .eh-settings-layout{grid-template-columns:minmax(0,1fr)!important}.hud-dashboard-pair,.hud-dashboard-pair.is-main{grid-template-columns:minmax(0,1fr)}#dashboardShell #pageContent{padding:16px!important}.hud-concern-workspace{grid-template-columns:minmax(0,1fr)}.hud-concern-library{border-right:0;padding-right:0;border-bottom:1px solid var(--border);padding-bottom:18px}.hud-concern-library .eh-concern-list{max-height:240px;overflow:auto}}
+@media(max-width:600px){#dashboardShell .eh-next-session #dashNext{grid-template-columns:minmax(0,1fr)!important;gap:0!important}#dashboardShell #pageContent .eh-next-session{padding:18px!important}#dashboardShell .hud-team-layout .eh-roster-summary{flex-wrap:wrap}.hud-page-actions{width:100%}#dashboardShell .hud-profile-editor .eh-studio-tabs>button{flex-basis:40%!important}}
+
+/* Final reference alignment, preserving the compact single-line greeting. */
+#dashboardShell #pageContent [data-panel=dashboard]>.eh-dashboard-heading{display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;align-items:end!important;gap:18px!important}
+#dashboardShell .eh-dashboard-heading>div{min-width:0}
+#dashboardShell .eh-dashboard-heading h1{max-width:100%;font-size:var(--welcome-font-size,34px)!important;white-space:nowrap!important;line-height:1.05!important}
+#dashboardShell .eh-dashboard-heading>.eh-team-picker{width:220px;min-width:0;margin:0!important}
+#dashboardShell #dashNext .eh-next-content>.eh-next-meta{order:-1!important}
+#dashboardShell .hud-dashboard-pair>article:is(.hidden,[hidden]){display:none!important}
+#dashboardShell .hud-dashboard-pair>article:not(.hidden):not([hidden]):only-of-type{grid-column:1/-1}
+.hud-analysis-layout{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(240px,1fr);gap:18px;align-items:start;margin-top:18px}
+.hud-analysis-stats,.hud-analysis-summary{min-width:0}
+.hud-analysis-stats{padding:18px;border:1px solid var(--border);background:var(--surface)}
+.hud-analysis-summary{display:grid;gap:18px}
+.hud-analysis-layout h3{margin:0 0 14px!important;font-size:17px!important;border-bottom:1px solid var(--border);padding-bottom:12px}
+.hud-analysis-hero{display:grid;grid-template-columns:minmax(80px,1fr) minmax(50px,1fr) auto;align-items:center;gap:10px;border-bottom:1px solid var(--border);padding:10px 0;font-size:12px}
+.hud-analysis-hero progress{height:10px;max-width:100%;width:100%;border-radius:0;accent-color:var(--hud-blue)}
+.hud-analysis-hero progress::-webkit-progress-bar{background:var(--border)}.hud-analysis-hero progress::-webkit-progress-value{background:var(--hud-blue)}
+#dashboardShell #memberDirectory>.eh-admin-member{display:grid!important;grid-template-columns:minmax(150px,1.2fr) minmax(150px,1fr) auto!important;gap:12px!important;padding:14px 8px!important;border:0!important;border-bottom:1px solid var(--border)!important;background:transparent!important;border-radius:0!important}
+#dashboardShell #memberDirectory>.eh-admin-member.eh-selected-member{background:var(--hud-nav-soft)!important;box-shadow:inset 3px 0 var(--hud-highlight)}
+#dashboardShell .eh-assignment-badges{display:flex;flex-wrap:wrap;gap:6px!important}
+#dashboardShell #memberDirectory>.eh-admin-member .eh-assignment-badges{min-width:0}
+#dashboardShell .eh-member-management-layout{grid-template-columns:minmax(0,1.5fr) minmax(280px,1fr)!important;gap:18px!important}
+@media(max-width:1100px){.hud-analysis-layout,#dashboardShell .eh-member-management-layout{grid-template-columns:minmax(0,1fr)!important}}
+@media(max-width:900px){#dashboardShell #pageContent [data-panel=dashboard]>.eh-dashboard-heading{grid-template-columns:minmax(0,1fr)!important}#dashboardShell .eh-dashboard-heading>.eh-team-picker{width:100%}#dashboardShell #memberDirectory>.eh-admin-member{grid-template-columns:minmax(0,1fr) auto!important}#dashboardShell #memberDirectory>.eh-admin-member .eh-assignment-badges{grid-column:1;grid-row:2}#dashboardShell #memberDirectory>.eh-admin-member>.eh-btn{grid-column:2;grid-row:1/3}}
+/* The existing studio nests its tabs and panels inside .eh-studio-main. */
+#dashboardShell .hud-profile-editor .eh-studio-layout{grid-template-columns:minmax(0,1fr)!important}
+#dashboardShell .hud-profile-editor .eh-studio-main{display:grid!important;grid-template-columns:180px minmax(0,1fr);gap:18px;align-items:start;min-width:0}
+#dashboardShell .hud-profile-editor .eh-studio-tabs{grid-column:1}
+#dashboardShell .hud-profile-editor .eh-studio-panels{grid-column:2;min-width:0}
+@media(max-width:1100px){#dashboardShell .hud-profile-editor .eh-studio-main{grid-template-columns:minmax(0,1fr)!important}#dashboardShell .hud-profile-editor .eh-studio-tabs,#dashboardShell .hud-profile-editor .eh-studio-panels{grid-column:1}}
+#dashboardShell #pageContent .eh-heading>.hud-team-header-selector{padding:0!important;border:0!important;background:none!important;margin:0 0 0 auto!important;box-shadow:none!important}
+.hud-team-header-selector::before,.hud-team-header-selector::after,.hud-team-header-selector>h2{display:none!important}
+#dashboardShell .hud-team-switcher-wrap:empty{display:none!important}
+@media(max-width:600px){#dashboardShell #pageContent .eh-heading>.hud-team-header-selector{width:100%;margin:0!important}.hud-team-header-selector #teamsMirror{width:100%}.hud-team-header-selector #teamsMirror .eh-pick{flex:1;min-width:0!important;padding:9px!important}}
+.hud-dashboard-pair:has(>article.hidden,>article[hidden])>article:not(.hidden):not([hidden]){grid-column:1/-1}
+.eh-dashboard-maps-dialog .eh-map-gallery-category{display:block;padding:14px;border:1px solid var(--border);background:var(--surface)}
+.eh-dashboard-maps-dialog .eh-map-gallery-category h4{font-size:12px;margin:0 0 12px;color:var(--hud-highlight);border-bottom:1px solid var(--border);padding-bottom:10px}
+.eh-dashboard-maps-dialog .eh-map-photo-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.eh-dashboard-maps-dialog .eh-map-photo-card{min-width:0;max-width:none;margin:0;border:1px solid var(--border);background:var(--bg);border-radius:0;overflow:hidden}
+.eh-dashboard-maps-dialog .eh-map-photo-card img{width:100%;height:auto;aspect-ratio:16/9;object-fit:cover;display:block}
+.eh-dashboard-maps-dialog .eh-map-photo-card figcaption{font-size:11px;padding:7px;overflow-wrap:anywhere}
+.eh-dashboard-maps-dialog>header .eh-btn{background:var(--bg)!important;color:var(--ink)!important;border:1px solid var(--border)!important;clip-path:none!important}
+#dashboardShell #pageContent .hud-dashboard-pair>article{grid-column:auto!important}
+#dashboardShell #pageContent .hud-dashboard-pair:has(>article.hidden,>article[hidden])>article:not(.hidden):not([hidden]){grid-column:1/-1!important}
+@media(min-width:1001px){
+ #dashboardShell #pageContent .hud-dashboard-pair.is-main>article{height:300px!important;min-height:300px!important;max-height:300px!important;display:flex!important;flex-direction:column!important;overflow:hidden!important;align-self:stretch!important}
+ #dashboardShell #pageContent .hud-dashboard-pair.is-main>article>#dashEvents{flex:1;min-height:0;overflow:hidden!important}
+}
+@media(max-width:1000px){#dashboardShell #pageContent .hud-dashboard-pair.is-main>article{height:auto!important;min-height:0!important;max-height:none!important}}
+/* Override the legacy twelve-column dashboard only at its root. */
+#dashboardShell #pageContent [data-panel=dashboard]>.eh-dashboard-grid{grid-template-columns:minmax(0,1fr)!important}
+#dashboardShell #pageContent .hud-dashboard-pair{grid-column:1/-1!important;width:100%;min-width:0}
+#dashboardShell #pageContent .hud-dashboard-pair>#hudDashboardAvailability{grid-column:auto!important}
+/* Dense auto packing and optional per-user saved card columns. */
+#dashboardShell #pageContent [data-panel=dashboard]>.eh-dashboard-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;align-items:start!important}
+#dashboardShell #pageContent .eh-dashboard-grid>.hud-dashboard-column{grid-column:auto!important;display:flex;flex-direction:column;gap:18px;min-width:0;height:auto!important}
+#dashboardShell .hud-dashboard-column>article{min-width:0!important;width:100%!important;box-sizing:border-box;margin:0!important;flex-shrink:0}
+.hud-layout-toolbar{grid-column:1/-1;display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;width:100%;margin-top:0}
+.hud-layout-toolbar>span{font-size:11px;margin-right:auto}
+.hud-layout-toolbar .eh-btn{font-size:11px!important;min-height:32px;padding:6px 10px!important}
+.hud-card-layout-controls{display:flex;align-items:center;justify-content:flex-end;gap:4px;margin:0 0 12px;padding-bottom:10px;border-bottom:1px dashed var(--hud-highlight)}
+.hud-card-layout-controls[hidden]{display:none!important}
+.hud-card-layout-controls button{display:grid;place-items:center;width:28px;height:28px;background:var(--bg);border:1px solid var(--border);color:var(--ink);clip-path:none!important;cursor:pointer;font:600 16px inherit}
+.hud-card-layout-controls button:hover{border-color:var(--hud-highlight);color:var(--hud-highlight)}
+.hud-layout-grip{margin-right:auto;font-size:22px;cursor:grab;color:var(--hud-highlight)}
+.hud-layout-editing{outline:1px dashed var(--hud-highlight);outline-offset:2px}
+@media(min-width:1001px){
+ #dashboardShell #pageContent .hud-dashboard-column>article:has(>#dashEvents),#dashboardShell #pageContent .hud-dashboard-column>#hudDashboardAvailability{height:300px!important;min-height:300px!important;max-height:300px!important;display:flex!important;flex-direction:column!important;overflow:hidden!important}
+ #dashboardShell #pageContent .hud-dashboard-column>article>#dashEvents{flex:1;min-height:0;overflow:hidden!important}
+}
+@media(max-width:1000px){#dashboardShell #pageContent [data-panel=dashboard]>.eh-dashboard-grid{grid-template-columns:minmax(0,1fr)!important}#dashboardShell #pageContent .hud-dashboard-column>#hudDashboardAvailability{height:auto!important;min-height:0!important;max-height:none!important}}
+/* EsportsHub UI Kit v1: shared object tokens and component states. */
+:root{--kit-space-1:4px;--kit-space-2:8px;--kit-space-3:12px;--kit-gap:18px;--kit-page:26px;--kit-focus:var(--hud-warning)}
+:root[data-preset=cyber]{--ink:#ededed!important;--muted:#8d8d95!important;--hud-grid:rgba(255,255,255,.04)}
+:root[data-preset=white]{--hud-grid:rgba(0,0,0,.05)}
+#dashboardShell #pageContent [data-panel]:not([data-panel=dashboard])>.eh-heading h1{font-size:clamp(32px,4vw,44px)!important}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible,[tabindex]:focus-visible,[contenteditable]:focus-visible,#dashboardShell .eh-btn:focus-visible,dialog .eh-btn:focus-visible{outline:2px solid var(--kit-focus)!important;outline-offset:2px!important}
+#dashboardShell :is(input,select,textarea):not([type=checkbox]):not([type=radio]):not([type=color]):not([type=range]),dialog :is(input,select,textarea):not([type=checkbox]):not([type=radio]):not([type=color]):not([type=range]){background:var(--bg)!important;border:1px solid var(--border)!important;border-radius:0!important;padding:9px 11px;font:400 14px/1.5 'Bai Jamjuree',sans-serif;min-width:0}
+#dashboardShell .eh-btn,dialog .eh-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;font-family:'Bai Jamjuree',sans-serif;font-weight:600;line-height:1.5}
+#dashboardShell .eh-btn:not(.hud-primary):not([type=submit]),dialog .eh-btn:not(.hud-primary):not([type=submit]){border-radius:0!important;background:transparent!important;color:var(--ink)!important;box-shadow:inset 0 0 0 1px var(--border)!important;border:0!important;clip-path:none!important}
+#dashboardShell .eh-btn.hud-primary,#dashboardShell .eh-btn[type=submit],dialog .eh-btn.hud-primary,dialog .eh-btn[type=submit]{background:var(--hud-purple)!important;color:var(--game-button-ink,#fff)!important;border:0!important;border-radius:0!important;box-shadow:none!important;clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px))!important}
+#dashboardShell .eh-btn:not(:disabled):hover,dialog .eh-btn:not(:disabled):hover{filter:brightness(1.12);box-shadow:inset 0 0 0 1px var(--hud-highlight)!important}
+#dashboardShell .eh-overview-section-icon svg{width:21px;height:21px;stroke-width:1.5}
+#dashboardShell :is(.sch-type,.eh-report-type),body :is(.eh-roster-role-tag,.hud-role-chip){display:inline-flex;align-items:center;justify-content:center;border-radius:0!important;padding:1px 8px!important;background:var(--hud-blue)!important;color:#06141c!important;border:0!important;font-size:11px!important;font-weight:700;line-height:1.5;letter-spacing:0;text-transform:uppercase}
+body .eh-roster-role-tag.is-staff,body .hud-role-chip:not(.is-starter):not(.is-sub),#dashboardShell .eh-report-card .eh-report-type,#dashboardShell .eh-concern-compose .eh-report-type{background:var(--hud-purple)!important;color:var(--game-button-ink,#fff)!important;border-color:var(--hud-purple)!important}
+body .eh-roster-role-tag.is-starter,body .hud-role-chip.is-starter{background:var(--hud-blue)!important;color:#06141c!important;border-color:var(--hud-blue)!important}
+body .eh-roster-role-tag.is-sub,body .hud-role-chip[data-role=guest],#sidebarRole[data-primary-role=guest] .hud-role-chip{background:transparent!important;color:var(--muted)!important;border:0!important;box-shadow:inset 0 0 0 1px var(--border)!important}
+#dashboardShell :is(.eh-roster-role-tag,.hud-role-chip){height:var(--hud-roster-control-height)!important;min-height:var(--hud-roster-control-height)!important}
+#dashboardShell .eh-result-win{color:var(--hud-blue)!important;font-weight:700}
+#dashboardShell .eh-result-loss,#dashboardShell .eh-pending{color:var(--hud-warning)!important;font-weight:700}
+.eh-notification-badge,.hud-notification-popover header>small{background:var(--hud-warning)!important;color:#1a1000!important;border-radius:0!important;font-size:10px!important;font-weight:700;padding:0 6px!important}
+:is(.eh-management-tabs,.eh-profile-tabs,.eh-studio-tabs){border-bottom:1px solid var(--border)}
+:is(.eh-management-tabs,.eh-profile-tabs) button{clip-path:none!important;padding:9px 16px!important;border:0!important;border-bottom:3px solid transparent!important;background:none!important;color:var(--muted)!important;font-weight:600}
+:is(.eh-management-tabs,.eh-profile-tabs) button[aria-selected=true]{border-bottom-color:var(--hud-highlight)!important;color:var(--ink)!important}
+.hud-attendance-choices,.eh-rsvp-choices,.sch-view-toggle{display:flex;gap:0!important;flex-wrap:wrap;box-shadow:inset 0 0 0 1px var(--border)}
+body :is(.hud-attendance-choices,.eh-rsvp-choices,.sch-view-toggle)>button{background:none!important;border:0!important;box-shadow:none!important;border-radius:0!important;color:var(--muted)!important;clip-path:none!important;padding:6px 12px!important;font-weight:600;min-height:32px}
+body :is(.hud-attendance-choices,.eh-rsvp-choices,.sch-view-toggle)>button[aria-pressed=true]{background:var(--hud-purple)!important;color:var(--game-button-ink,#fff)!important}
+body :is(.eh-pd,.eh-mini-profile,.eh-profile-preview){border-radius:0!important}
+.hud-layout-grip svg,.hud-card-layout-controls svg{display:block;width:18px;height:18px;stroke-width:1.5}
+.hud-card-layout-controls button:disabled{opacity:.3;cursor:default}
+.hud-concern-choice small,.eh-upcoming-info small,.eh-roster-identity .eh-muted{font-size:12px;line-height:1.5}
+/* Composite top-bar controls own their border; avoid nested field frames. */
+#dashboardShell .hud-global-search input#hudGlobalSearch{border:0!important;background:transparent!important;padding:0!important;font-size:12px!important;box-shadow:none!important}
+#dashboardShell #roleViewSelect{font-size:12px!important}
+@media(max-width:900px){#dashboardShell #roleViewSelect{font-size:10px!important}}
+
+/* Map names use player badges; mode headers retain the normal accent treatment. */
+#dashboardShell #dashMapPool .eh-dashboard-map-heading{display:flex;align-items:center;gap:7px;margin:0 0 10px!important;min-width:0;color:var(--hud-highlight)!important;background:none!important;border:0!important;padding:0!important;font-size:11px!important;line-height:1.4!important}
+#dashboardShell #dashMapPool .eh-map-mode-icon{display:flex;align-items:center;flex:0 0 17px;color:var(--hud-highlight)}
+#dashboardShell #dashMapPool .eh-map-mode-icon svg{display:block;width:17px;height:17px;stroke-width:1.5}
+#dashboardShell #dashMapPool .eh-dashboard-map-tiles{display:flex!important;flex-wrap:wrap;gap:6px!important;align-items:flex-start}
+#dashboardShell #dashMapPool .eh-dashboard-map-entry{display:flex;flex-direction:column;gap:4px;min-width:0;max-width:100%}
+#dashboardShell #dashMapPool .eh-dashboard-map-label{font-size:10px!important;max-width:100%;white-space:nowrap}
+#dashboardShell #dashMapPool .eh-dashboard-map-entry>small{position:static!important;max-width:100%;font-size:10px;line-height:1.4;overflow-wrap:anywhere}
+
+/* Icon-only publishing/editing controls retain accessible click targets. */
+body #dashboardShell :is(#dashMapPoolCard,#teamResources,#dashNews,article:has(>#dashNews)) button.eh-icon-action:is(.eh-btn,.eh-news-edit){display:inline-flex!important;align-items:center!important;justify-content:center!important;width:32px!important;min-width:32px!important;height:32px!important;min-height:32px!important;padding:5px!important;margin:0!important;background:transparent!important;border:0!important;box-shadow:none!important;clip-path:none!important;border-radius:0!important;color:var(--muted)!important;filter:none!important}
+body #dashboardShell :is(#dashMapPoolCard,#teamResources,#dashNews,article:has(>#dashNews)) button.eh-icon-action:is(.eh-btn,.eh-news-edit):hover{background:transparent!important;color:var(--hud-highlight)!important;box-shadow:none!important}
+.eh-icon-action svg{display:block;width:21px;height:21px;flex:none;stroke-width:1.5}
+
+.eh-news-article-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.eh-news-article-heading>div{min-width:0;flex:1}
+.eh-news-article-heading strong{overflow-wrap:anywhere}
+.eh-news-article-heading .eh-news-edit{position:static!important;float:none!important;flex:none}
+.eh-news-reader-actions{display:flex;align-items:center;gap:8px}
+.hud-news-reader .eh-news-reader-body>.hud-news-item{padding:18px 0!important;border-bottom:1px solid var(--border)}
+:root[data-preset] body dialog.hud-news-reader button.eh-icon-action:is(.eh-btn,.eh-news-edit){display:inline-flex!important;align-items:center!important;justify-content:center!important;width:32px!important;min-width:32px!important;height:32px!important;min-height:32px!important;padding:5px!important;background:transparent!important;border:0!important;box-shadow:none!important;clip-path:none!important;border-radius:0!important;color:var(--muted)!important;filter:none!important}
+:root[data-preset] body dialog.hud-news-reader button.eh-icon-action:is(.eh-btn,.eh-news-edit):hover{color:var(--hud-highlight)!important;background:transparent!important;box-shadow:none!important}
+
+/* Compact team map tiles; restriction markers never add a caption row. */
+#dashboardShell .hud-team-layout .eh-map-gallery-groups{gap:10px!important}
+#dashboardShell .hud-team-layout .eh-map-gallery-category{padding:10px!important}
+#dashboardShell .hud-team-layout .eh-map-gallery-category h4{margin:0 0 7px!important;padding-bottom:6px!important}
+#dashboardShell .hud-team-layout .eh-map-photo-grid{gap:7px!important}
+#dashboardShell .hud-team-layout .eh-map-photo-card{margin:0!important}
+#dashboardShell .hud-team-layout .eh-map-photo-card img{aspect-ratio:2/1!important}
+#dashboardShell .hud-team-layout .eh-map-photo-card figcaption{padding:5px 6px!important;min-height:28px!important;font-size:10px!important;line-height:1.4!important}
+body :is(#dashboardShell,.eh-dashboard-maps-dialog) button.eh-map-restriction-marker{position:absolute!important;top:3px;right:3px;width:26px!important;height:26px!important;min-width:26px!important;padding:4px!important;border:0!important;background:var(--bg)!important;color:var(--hud-warning)!important;box-shadow:none!important;clip-path:none!important;cursor:pointer;z-index:3}
+.eh-map-restriction-marker svg{width:18px;height:18px}
+.eh-map-restriction-tooltip{position:fixed;inset:auto;margin:0;padding:10px 12px;max-width:min(280px,calc(100vw - 16px));background:var(--surface);color:var(--ink);border:1px solid var(--hud-warning);font:500 12px/1.5 'Bai Jamjuree',sans-serif;z-index:10000;pointer-events:none;box-shadow:3px 3px 0 var(--bg)}
+.eh-news-article-heading>button{flex:none!important}
+body :is(#dashboardShell,dialog.hud-news-reader) button.eh-news-delete:hover{color:var(--hud-warning)!important}
+#dashboardShell #pageContent #practiceSuggestions .eh-practice-window{padding:8px 0!important}
+#dashboardShell #practiceSuggestions>p{margin:6px 0!important}
+@media(min-width:1101px){.hud-availability-layout{align-items:stretch}.hud-availability-sidebar{grid-template-rows:auto minmax(0,1fr);align-content:stretch}.hud-availability-sidebar>#practiceSuggestions{min-height:0}.hud-availability-sidebar>.hud-availability-players{min-height:0;overflow:auto}}
+@media(min-width:1101px){
+ .hud-availability-layout{align-items:start}
+ .hud-availability-sidebar{contain:size;height:100%;min-height:0;grid-template-rows:minmax(0,1fr) auto}
+ #dashboardShell #pageContent .hud-availability-sidebar>#practiceSuggestions{display:flex;flex-direction:column;overflow:auto;padding:14px!important}
+ #dashboardShell #practiceSuggestions>[data-windows]{min-height:0;overflow:auto}
+ #dashboardShell #pageContent .hud-availability-sidebar>.hud-availability-players{padding:14px!important;overflow:auto;max-height:240px}
+ #dashboardShell .hud-availability-players .eh-availability-summary{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px!important}
+ #dashboardShell .hud-availability-players .eh-availability-summary>div{padding:7px!important}
+ #dashboardShell .hud-availability-players .eh-availability-summary strong{font-size:20px!important}
+}
+@media(min-width:1101px){
+ #dashboardShell #pageContent .hud-availability-players #availabilitySummary{padding:0!important;margin:0 0 8px!important}
+ #dashboardShell .hud-availability-players>.eh-availability-roster{margin:0!important}
+ #dashboardShell #practiceSuggestions .eh-practice-row-info strong{font-size:12px!important}
+ #dashboardShell #practiceSuggestions .eh-practice-people{margin:0!important}
+ #dashboardShell #practiceSuggestions .eh-practice-window{padding:6px 0!important;gap:2px 8px!important}
+ #dashboardShell #practiceSuggestions>.eh-muted{font-size:11px!important;line-height:1.4!important}
+}
+@media(min-width:1101px){
+ #dashboardShell #practiceSuggestions .eh-practice-window{padding:4px 0!important}
+ #dashboardShell #practiceSuggestions .eh-practice-options{margin:6px 0!important;padding-bottom:6px!important}
+}
+@media(min-width:1101px){#dashboardShell #pageContent #practiceSuggestions .eh-practice-window{padding:4px 0!important;gap:2px 8px!important}}
