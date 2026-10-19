@@ -1,0 +1,37 @@
+[
+  {
+    "key": "block",
+    "family": "Bungee",
+    "file": "block.ttf",
+    "source": "https://fonts.gstatic.com/s/bungee/v17/N0bU2SZBIuF2PU_ECg.ttf",
+    "license": "https://raw.githubusercontent.com/google/fonts/main/ofl/bungee/OFL.txt"
+  },
+  {
+    "key": "future",
+    "family": "Orbitron",
+    "file": "future.ttf",
+    "source": "https://fonts.gstatic.com/s/orbitron/v35/yMJMMIlzdpvBhQQL_SC3X9yhF25-T1nyGy6xpg.ttf",
+    "license": "https://raw.githubusercontent.com/google/fonts/main/ofl/orbitron/OFL.txt"
+  },
+  {
+    "key": "script",
+    "family": "Sriracha",
+    "file": "script.ttf",
+    "source": "https://fonts.gstatic.com/s/sriracha/v16/0nkrC9D4IuYBgWcI9ObY.ttf",
+    "license": "https://raw.githubusercontent.com/google/fonts/main/ofl/sriracha/OFL.txt"
+  },
+  {
+    "key": "gothic",
+    "family": "Grenze Gotisch",
+    "file": "gothic.ttf",
+    "source": "https://fonts.gstatic.com/s/grenzegotisch/v20/Fh4hPjjqNDz1osh_jX9YfjudpBJBNV5y5wf_k1i5Lz9UcA.ttf",
+    "license": "https://raw.githubusercontent.com/google/fonts/main/ofl/grenzegotisch/OFL.txt"
+  },
+  {
+    "key": "pixel",
+    "family": "Press Start 2P",
+    "file": "pixel.ttf",
+    "source": "https://fonts.gstatic.com/s/pressstart2p/v16/e3t4euO8T-267oIAQAu6jDQyK0nS.ttf",
+    "license": "https://raw.githubusercontent.com/google/fonts/main/ofl/pressstart2p/OFL.txt"
+  }
+]

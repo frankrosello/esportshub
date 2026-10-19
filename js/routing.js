@@ -6,7 +6,7 @@
     ? new URL('https://frankrosello.github.io/esportshub/')
     : new URL('./', here);
   function home({invite='', auth='', hash=''}={}) {
-    const url = new URL('index.html', root);
+    const url = new URL(auth?'signin.html':'index.html', root);
     if (invite) url.searchParams.set('invite', invite);
     if (auth) url.searchParams.set('auth', auth);
     if (hash) url.hash = hash;
@@ -19,6 +19,10 @@
     canonical.search=here.search;
     canonical.hash=here.hash;
     window.history.replaceState(null,'',canonical.href);
+  }
+  // Legacy auth links enter the dedicated sign-in page once; Clerk's own hash stays intact.
+  if(here.searchParams.has('auth')&&(here.pathname.endsWith('/index.html')||here.pathname===root.pathname||here.pathname===root.pathname.replace(/\/$/,''))){
+    const destination=new URL('signin.html',root);destination.search=here.search;destination.hash=here.hash;window.location.replace(destination.href);
   }
   function clerkOptions(returnUrl=home(), invite='') {
     return {
