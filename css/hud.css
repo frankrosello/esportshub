@@ -577,3 +577,59 @@ body .eh-assignment-badges .eh-roster-role-tag.is-starter{color:var(--hud-blue)!
 /* Desktop account launcher: clean surface, with a themed hover and open state. */
 @media(min-width:901px){#dashboardShell #openSelfProfile{border:0!important;clip-path:none!important;box-shadow:none!important;border-radius:0!important;transition:background-color .15s ease,color .15s ease}#dashboardShell #openSelfProfile::before,#dashboardShell #openSelfProfile::after{display:none!important}#dashboardShell #openSelfProfile:hover,#dashboardShell #openSelfProfile[aria-expanded=true]{background:color-mix(in srgb,var(--hud-highlight) 12%,var(--surface))!important;color:var(--ink)!important}#dashboardShell #openSelfProfile:hover .eh-account-chevron{color:var(--hud-highlight)!important}}
 @media(prefers-reduced-motion:reduce){#dashboardShell #openSelfProfile{transition:none!important}}
+/* Event and mobile reliability pass. */
+#dashboardShell .eh-upcoming-row[hidden]{display:none!important}
+@media(min-width:1001px){#dashboardShell .eh-dashboard-grid #dashEvents{overflow:hidden!important}}
+#dashboardShell .eh-next-content>.eh-next-actions{order:10!important;position:static!important;float:none!important;clear:both;width:100%;margin-top:12px!important;min-width:0}
+#dashboardShell .eh-next-content>.eh-next-personal{order:20!important}
+#dashboardShell .eh-next-content>.eh-next-actions>.eh-btn{max-width:100%;height:auto!important;white-space:normal;overflow-wrap:normal;min-width:0}
+#dashboardShell .eh-roster-toolbar{display:grid!important;grid-template-columns:minmax(0,1fr) auto;align-items:center!important;min-width:0}
+#dashboardShell .eh-roster-toolbar input[type=search]{height:40px!important;min-height:40px!important;max-height:40px!important;flex:none!important;flex-basis:auto!important;box-sizing:border-box!important;width:100%!important;min-width:0!important;max-width:100%!important;padding:8px 12px!important}
+#dashboardShell .eh-roster-toolbar:not(:has(button)) input[type=search]{grid-column:1/-1}
+#dashboardShell .hud-season-card .eh-season-metrics strong{font-size:clamp(20px,2vw,28px)!important;line-height:1.1!important;letter-spacing:-.01em!important;max-width:100%;white-space:nowrap}
+#dashboardShell .hud-season-card .eh-season-metrics>div{min-width:0;padding:12px!important}
+#weekGrid.eh-editing{touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+#weekGrid:not(.eh-editing){touch-action:pan-y}
+.eh-vod-insert{width:min(850px,calc(100vw - 24px))!important;padding:22px!important;box-sizing:border-box}
+.eh-vod-insert form{margin:0}.eh-vod-insert header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.eh-vod-insert h2{font-size:24px!important;margin:8px 0 0!important}
+.eh-vod-map-entry{min-width:0;margin:16px 0;padding:16px;border:1px solid var(--border)}.eh-vod-map-entry legend{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--hud-highlight);padding:0 6px}
+.eh-vod-code-grid{display:grid;grid-template-columns:minmax(135px,.8fr) minmax(160px,1.3fr) minmax(110px,.8fr) auto;gap:12px;align-items:end}
+.eh-vod-code-grid label{font-size:11px;min-width:0;margin:0}.eh-vod-code-grid :is(input,select){width:100%;height:40px;min-width:0;box-sizing:border-box;margin:6px 0 0!important}
+.eh-vod-mode-select{position:relative;display:block}.eh-vod-mode-select select{padding-left:34px!important}.eh-vod-mode-select [data-mode-icon]{position:absolute;left:10px;top:17px;width:17px;height:17px;pointer-events:none;color:var(--hud-highlight)}.eh-vod-mode-select svg{display:block;width:17px;height:17px}
+.eh-vod-code-grid [data-remove]{height:40px!important;min-height:40px!important}.eh-vod-code-grid [data-remove][hidden]{display:none!important}.eh-vod-insert footer{display:flex;gap:10px;justify-content:flex-end;border-top:1px solid var(--border);padding-top:16px;margin-top:20px}
+@media(max-width:900px){
+ #dashboardShell .hud-team-switcher #teamsMirror{gap:8px!important}
+ #dashboardShell .hud-team-switcher .eh-pick,#dashboardShell .eh-pick{border:1px solid var(--border)!important;box-sizing:border-box;min-width:0;max-width:100%}
+ #dashboardShell .hud-team-switcher .eh-pick.active{border-color:var(--hud-highlight)!important;border-bottom-width:3px!important}
+ #dashboardShell #sidebar .brand{padding-inline:48px!important}
+ #dashboardShell #sidebar .brand .eh-theme-wordmark{width:180px!important;max-width:100%!important;aspect-ratio:2327/474!important;height:auto!important;flex:0 1 auto!important}
+ #dashboardShell #closeMobileNav{position:absolute!important;right:10px!important;top:22px!important;display:grid!important;place-items:center!important;width:32px!important;height:32px!important;min-height:32px!important;padding:6px!important;margin:0!important;z-index:2}
+ #dashboardShell #closeMobileNav svg{width:20px;height:20px;display:block}
+ .eh-vod-code-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.eh-vod-code-grid label:nth-child(2){grid-column:auto}
+}
+@media(max-width:600px){
+ #dashboardShell #hudDashboardAvailability{display:flex!important;flex-direction:column;min-width:0;height:auto!important}
+ #dashboardShell #hudDashboardAvailability>.eh-row{display:contents!important}
+ #dashboardShell #hudDashboardAvailability h2{order:0;display:flex;align-items:center;gap:8px;width:100%;min-width:0;padding-bottom:12px;margin-bottom:14px!important;border-bottom:1px solid var(--border);line-height:1.25!important;word-break:normal!important;overflow-wrap:normal!important}
+ #dashboardShell #hudDashboardAvailability h2>span:last-child{min-width:0;white-space:normal;word-break:normal!important;overflow-wrap:normal!important}
+ #dashboardShell #hudDashboardAvailability #dashAvailability{order:1}
+ #dashboardShell #hudDashboardAvailability>.eh-row>.eh-btn{order:2;display:block;align-self:stretch;width:100%;margin:14px 0 0!important}
+ #dashboardShell .hud-season-card .eh-season-metrics strong{font-size:20px!important}
+ #dashboardShell .hud-season-card .eh-season-metrics>div{padding:10px 8px!important}
+ #dashboardShell .eh-roster-toolbar{grid-template-columns:minmax(0,1fr)!important;gap:10px!important}
+ #dashboardShell .eh-roster-toolbar .eh-btn{justify-self:start}
+ :is(.eh-event-context,.eh-guest-event,.eh-readiness-dialog,.eh-attendance-dialog,.eh-editor) :is(h2,h3,p,label){min-width:0;max-width:100%;white-space:normal!important;overflow-wrap:anywhere;word-break:normal}
+ :is(.eh-coordination,.eh-editor,.eh-guest-event) :is(form,.eh-grid,.eh-row){min-width:0;max-width:100%}
+ :is(.eh-coordination,.eh-editor) input:is([type=date],[type=time],[type=datetime-local]){width:100%!important;min-width:0!important;max-width:100%!important;box-sizing:border-box!important;min-inline-size:0}
+ .eh-event-context [data-date],#dashboardShell .eh-next-time,.sch-event-date,.sch-event-time,.sch-time{white-space:normal!important;overflow-wrap:anywhere;max-width:100%;line-height:1.5!important}
+ #dashboardShell [data-panel=analysis],#dashboardShell [data-panel=analysis]>article,#workshopResult{min-width:0!important;width:100%;max-width:100%;box-sizing:border-box}
+ #dashboardShell [data-panel=analysis] h1{font-size:clamp(26px,7vw,34px)!important;white-space:normal!important;line-height:1.05!important;overflow-wrap:normal!important}
+ .hud-drop-zone{min-width:0!important;max-width:100%!important;width:100%;box-sizing:border-box;padding:22px 14px!important}
+ .hud-drop-zone>strong{font-size:18px!important;white-space:normal!important;line-height:1.3!important;overflow-wrap:normal}
+ #dashboardShell #workshopFile{width:100%!important;min-width:0!important;max-width:100%!important;box-sizing:border-box;font-size:11px!important}
+ #workshopResult .table-wrap{width:100%;max-width:100%;overflow-x:auto}
+ .eh-vod-insert{padding:16px!important}.eh-vod-code-grid{grid-template-columns:minmax(0,1fr)}.eh-vod-code-grid [data-remove]{justify-self:start}.eh-vod-map-entry{padding:12px}.eh-vod-insert footer{flex-wrap:wrap}
+}
+@media(min-width:1001px){#dashboardShell #pageContent .eh-dashboard-grid #dashEvents{flex:1 1 0!important;min-height:0!important;overflow:hidden!important}}
+dialog.eh-guest-event{width:min(680px,calc(100vw - 24px));max-width:calc(100vw - 24px);max-height:calc(100dvh - 24px);box-sizing:border-box;overflow-y:auto;overflow-wrap:anywhere;color:var(--ink);background:var(--surface)}
+dialog.eh-vod-insert.eh-panel .eh-btn:not([type=submit]){background:var(--bg)!important;color:var(--ink)!important;border:1px solid var(--border)!important;box-shadow:none!important}
