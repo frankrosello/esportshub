@@ -1582,3 +1582,11 @@ body #hudSlotPopover.is-visible{opacity:1;transform:translateY(0);transition:opa
 #dashboardShell .sch-chip.sch-esports{border-left:3px solid #f5bd63!important;background:color-mix(in srgb,#f5bd63 14%,var(--surface))!important}
 @media(min-width:901px){#dashboardShell:not(.eh-floating-compact) .top-actions #notificationsButton{width:154px!important}#dashboardShell:not(.eh-floating-compact) .top-actions .eh-notification-label{flex-shrink:0!important}}
 #dashboardShell #pageContent .eh-heading>.eh-page-heading-actions:empty,#dashboardShell #pageContent .eh-heading>.eh-page-heading-actions:not(:has(>:not([hidden]):not(.hidden))){display:none!important}
+/* Keep unread counts inside the compact control instead of clipping them. */
+#dashboardShell .top-actions #notificationsButton>.eh-notification-badge{flex:none!important;box-sizing:border-box!important;white-space:nowrap!important}
+#dashboardShell.eh-floating-compact .top-actions #notificationsButton>.eh-notification-label{display:none!important}
+#dashboardShell.eh-floating-compact .top-actions #notificationsButton:has(>.eh-notification-badge:not([hidden])){width:max-content!important;min-width:64px!important;gap:8px!important;padding-inline:8px!important}
+@media(max-width:900px){
+ #dashboardShell .top-actions #notificationsButton:has(>.eh-notification-badge:not([hidden])){width:max-content!important;min-width:60px!important;gap:6px!important;padding-inline:8px!important}
+ #dashboardShell .top-actions #notificationsButton>.eh-notification-badge{position:static!important;inset:auto!important;border:0!important;height:18px!important;min-width:18px!important;line-height:18px!important;padding:0 4px!important}
+}
