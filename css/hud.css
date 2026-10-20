@@ -1320,3 +1320,265 @@ body #onboardingDialog.eh-onboarding-live::before,body #onboardingDialog.eh-onbo
 #dashPublicRoster{display:grid;gap:0}#dashPublicRoster .eh-public-roster-row{display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid var(--border);background:transparent}#dashPublicRoster .eh-public-roster-row:last-child{border-bottom:0}#dashPublicRoster .eh-public-roster-picture{flex:0 0 42px;width:42px;height:42px}#dashPublicRoster .eh-roster-avatar{position:relative;display:grid;place-items:center;width:42px;height:42px;border:1px solid var(--border);background:var(--surface);color:var(--hud-highlight);overflow:hidden;border-radius:0;clip-path:none}#dashPublicRoster .eh-roster-avatar img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}#dashPublicRoster .eh-public-roster-identity{flex:1;min-width:0;color:var(--ink);overflow-wrap:anywhere}#dashPublicRoster .hud-role-chip{flex-shrink:0}@media(max-width:480px){#dashPublicRoster .eh-public-roster-row{gap:9px}#dashPublicRoster .hud-role-chip{font-size:10px;padding-inline:7px}}
 
 #dashboardShell #hudDashboardAvailability.hidden,#dashboardShell #hudDashboardAvailability[hidden],#dashboardShell #dashMapPoolCard.hidden{display:none!important}
+
+/* Keep embedded identity controls rectangular and their full border inside the layout. */
+:root body #loginPage :is(#clerk-sign-in,#clerk-sign-up) :is(.cl-rootBox,.cl-cardBox,.cl-card,.cl-main,.cl-socialButtons,.cl-socialButtonsBlock,.cl-socialButtonsBlockButtonWrapper,.cl-form,.cl-formField,.cl-formFieldInputGroup){overflow:visible!important;clip-path:none!important;mask:none!important;min-width:0;box-sizing:border-box}
+:root body #loginPage :is(#clerk-sign-in,#clerk-sign-up) :is(.cl-formFieldInput,.cl-socialButtonsBlockButton){appearance:none!important;transform:none!important;clip-path:none!important;mask:none!important;border:1px solid var(--hud-highlight)!important;border-left:1px solid var(--hud-highlight)!important;border-right:1px solid var(--hud-highlight)!important;border-radius:0!important;box-shadow:none!important;outline:none!important;box-sizing:border-box!important;width:100%;max-width:100%!important;margin-inline:0!important}
+:root body #loginPage :is(#clerk-sign-in,#clerk-sign-up) .cl-formFieldInput:focus-visible{outline:0!important;border-color:var(--hud-highlight)!important;box-shadow:none!important}
+:root body #loginPage :is(#clerk-sign-in,#clerk-sign-up) .cl-socialButtonsBlockButton{position:relative;overflow:visible!important;margin-top:10px!important}
+:root body #loginPage :is(#clerk-sign-in,#clerk-sign-up) .cl-socialButtonsBlockButtonWrapper{position:relative;padding-inline:1px}
+:root body #loginPage :is(#clerk-sign-in,#clerk-sign-up) .cl-badge{white-space:nowrap!important;max-width:none!important;overflow:visible!important;clip-path:none!important;right:8px!important;z-index:2;background:var(--surface)!important;color:var(--muted)!important}
+:root body :is(#dashboardShell,.eh-dashboard-maps-dialog) .eh-map-photo-card button.eh-map-note-action{display:grid!important;place-items:center;width:28px!important;min-width:28px!important;height:28px!important;min-height:28px!important;padding:5px!important;bottom:6px;right:6px;border:1px solid var(--border)!important;clip-path:none!important;background:var(--surface)!important;color:var(--hud-highlight)!important;box-shadow:none!important;border-radius:0!important;cursor:pointer}
+.eh-map-note-action svg{width:17px;height:17px;pointer-events:none}.eh-map-note-action:hover{filter:brightness(1.25)}.eh-map-note-action:focus-visible{outline:2px solid var(--hud-highlight)!important;outline-offset:2px!important}
+
+#loginPage :is(#clerk-sign-in,#clerk-sign-up) .cl-form{display:flex!important;flex-direction:column!important;gap:14px!important}
+#loginPage :is(#clerk-sign-in,#clerk-sign-up) .eh-auth-submit-help{display:block;flex:none;margin:4px 0 0!important;padding:0!important;color:var(--muted)!important;font-size:12px!important;line-height:1.55!important;font-weight:400;text-transform:none;letter-spacing:0}
+#loginPage :is(#clerk-sign-in,#clerk-sign-up) .cl-formButtonPrimary{margin-top:0!important}
+
+/* Collapsible sidebar prototype: reference framing with the app's theme tokens. */
+#dashboardShell .eh-sidebar-header{display:flex;align-items:center;gap:8px;min-height:72px;padding:12px;border-bottom:1px solid var(--border);flex-shrink:0}
+#dashboardShell #sidebar .eh-sidebar-header .brand{flex:1;min-width:0;height:auto!important;min-height:0!important;border:0!important;padding:0!important;margin:0!important}
+#dashboardShell #sidebar .eh-sidebar-header .eh-theme-wordmark{width:158px!important;max-width:100%!important}
+.eh-sidebar-mark{display:none;width:34px;height:34px;background:var(--hud-highlight);mask:url('../assets/favicon.svg') center/contain no-repeat}
+:root body #dashboardShell .eh-sidebar-collapse{display:grid;place-items:center;flex:0 0 32px;width:32px;height:32px;min-height:32px;padding:6px;border:0!important;background:transparent!important;color:var(--muted);clip-path:none!important;box-shadow:none!important}
+.eh-sidebar-collapse svg{width:20px;height:20px;transition:transform .2s}.eh-sidebar-collapse:hover{color:var(--hud-highlight)!important}
+#dashboardShell #sidebar .eh-sidebar-search{margin:14px 12px 2px!important;width:calc(100% - 24px)!important;max-width:none!important;height:42px!important;min-height:42px;flex-shrink:0;padding:0 10px!important;background:var(--bg)!important;box-sizing:border-box}
+#dashboardShell #sidebar .eh-sidebar-search .hud-global-search-icon{display:flex!important}#dashboardShell #sidebar .eh-sidebar-search input#hudGlobalSearch{display:block!important;position:static!important;width:100%!important;min-width:0!important;flex:1!important;left:auto!important;right:auto!important;top:auto!important;padding:0!important;border:0!important;background:transparent!important}
+#dashboardShell #sidebar .eh-sidebar-search kbd{display:none!important}#dashboardShell #sidebar .eh-sidebar-search .hud-search-toggle{display:none!important}
+#dashboardShell #sidebar .eh-sidebar-search .hud-global-search-results{position:absolute!important;top:calc(100% + 8px)!important;left:0!important;right:auto!important;width:min(370px,calc(85vw - 28px))!important;max-width:calc(100vw - 36px)!important;max-height:min(430px,calc(100dvh - 190px))!important;z-index:500}
+#dashboardShell #sidebar .nav-link{height:42px;min-height:42px;white-space:nowrap;border-left:3px solid transparent!important;padding:0 18px!important;color:var(--muted)!important}
+#dashboardShell #sidebar .nav-link:hover{background:color-mix(in srgb,var(--hud-highlight) 10%,transparent)!important;color:var(--ink)!important}
+#dashboardShell #sidebar .nav-link.active{border-left-color:var(--hud-highlight)!important;background:linear-gradient(90deg,color-mix(in srgb,var(--hud-highlight) 14%,transparent),transparent)!important;color:var(--ink)!important}
+#dashboardShell #sidebar .nav-link.active svg{color:var(--hud-highlight)!important}#dashboardShell #sidebar .nav-link svg{width:20px;height:20px}
+#dashboardShell #sidebar .nav-heading{font-size:10px!important;letter-spacing:.08em!important;padding:10px 18px 6px!important;margin:0!important}
+#dashboardShell #sidebar .eh-account-area{padding:10px 12px!important;border-top:1px solid var(--border)}
+body #sidebarTooltip{position:fixed;inset:auto;margin:0;padding:6px 11px;background:var(--ink);color:var(--bg);border:0;border-radius:0;box-shadow:var(--hud-shadow);font:600 12px/1.5 'Bai Jamjuree',sans-serif;white-space:nowrap;pointer-events:none;overflow:visible;animation:eh-sidebar-tip-in .12s ease-out}
+@keyframes eh-sidebar-tip-in{from{opacity:0;transform:translateX(-4px)}to{opacity:1;transform:none}}
+@media(min-width:901px){
+ #dashboardShell:not(.hidden){display:flex!important;gap:0!important;align-items:flex-start!important}
+ #dashboardShell #sidebar{width:248px!important;min-width:248px!important;flex:0 0 248px!important;margin:12px!important;top:12px!important;height:calc(100dvh - 24px)!important;padding:0!important;background:var(--surface)!important;border:1px solid var(--border)!important;transition:width .25s ease,min-width .25s ease,flex-basis .25s ease}
+ #dashboardShell #sidebar::before,#dashboardShell #sidebar::after{content:'';position:absolute;width:11px;height:11px;pointer-events:none;border:2px solid var(--hud-highlight)}#dashboardShell #sidebar::before{top:-2px;left:-2px;border-right:0;border-bottom:0}#dashboardShell #sidebar::after{bottom:-2px;right:-2px;border-left:0;border-top:0}
+ #dashboardShell .main-column{flex:1;width:0!important;min-width:0;margin:0!important}
+ #dashboardShell .topbar{display:contents!important}#dashboardShell .topbar>.top-left{display:none!important}
+ #dashboardShell .top-actions{position:fixed;top:12px;right:24px;z-index:70;display:flex!important;align-items:center;gap:8px!important;padding:8px!important;background:var(--surface)!important;border:1px solid var(--border);box-shadow:var(--hud-shadow)}
+ #dashboardShell #pageContent{padding-top:86px!important}
+ #dashboardShell.eh-sidebar-collapsed #sidebar{width:72px!important;min-width:72px!important;flex-basis:72px!important}
+ #dashboardShell.eh-sidebar-collapsed .eh-sidebar-header{flex-direction:column;padding:14px 0 10px;gap:10px}
+ #dashboardShell.eh-sidebar-collapsed #sidebar .brand{flex:none;justify-content:center!important}
+ #dashboardShell.eh-sidebar-collapsed .eh-theme-wordmark{display:none!important}#dashboardShell.eh-sidebar-collapsed .eh-sidebar-mark{display:block}
+ #dashboardShell.eh-sidebar-collapsed .eh-sidebar-collapse svg{transform:rotate(180deg)}
+ #dashboardShell.eh-sidebar-collapsed #sidebar .nav-link{justify-content:center!important;padding:0!important;gap:0!important}#dashboardShell.eh-sidebar-collapsed #sidebar .nav-link>span{display:none!important}
+ #dashboardShell.eh-sidebar-collapsed #sidebar .nav-heading{font-size:0!important;height:1px!important;padding:0!important;margin:12px 16px!important;background:var(--border)}
+ #dashboardShell.eh-sidebar-collapsed #sidebar .eh-sidebar-search{width:44px!important;margin:12px auto 2px!important;padding:0!important;justify-content:center!important}
+ #dashboardShell.eh-sidebar-collapsed #sidebar .eh-sidebar-search :is(input#hudGlobalSearch,.hud-global-search-icon){display:none!important}#dashboardShell.eh-sidebar-collapsed #sidebar .eh-sidebar-search .hud-search-toggle{display:grid!important;place-items:center;width:42px!important;height:40px!important;color:var(--muted)!important}
+ #dashboardShell.eh-sidebar-collapsed #sidebar .eh-account-area{padding:12px 8px!important}#dashboardShell.eh-sidebar-collapsed #openSelfProfile{justify-content:center!important;padding:0!important;gap:0!important}#dashboardShell.eh-sidebar-collapsed #openSelfProfile>div:not(.avatar),#dashboardShell.eh-sidebar-collapsed #openSelfProfile>.eh-profile-chevron{display:none!important}
+}
+@media(max-width:900px){
+ #dashboardShell .eh-sidebar-collapse{display:none!important}#dashboardShell #sidebar .eh-sidebar-header{padding:0 46px!important;min-height:76px;justify-content:center}
+ #dashboardShell #sidebar .eh-sidebar-header .brand{justify-content:center!important;flex:none;width:100%;max-width:190px}#dashboardShell #sidebar .eh-sidebar-header .eh-theme-wordmark{width:100%!important}
+ #dashboardShell #sidebar{padding-top:0!important;background:var(--surface)!important;border-right:1px solid var(--border)!important}
+ #dashboardShell .topbar{background:transparent!important;border:0!important;box-shadow:none!important}#dashboardShell .topbar::before,#dashboardShell .topbar::after{display:none!important}
+ #dashboardShell .top-actions{background:var(--surface);padding:5px!important;border:1px solid var(--border)}
+ #dashboardShell #sidebar .eh-sidebar-search input#hudGlobalSearch{font-size:16px!important;height:40px!important}
+}
+@media(prefers-reduced-motion:reduce){#dashboardShell #sidebar,.eh-sidebar-collapse svg{transition:none!important}body #sidebarTooltip{animation:none!important}}
+/* Fit navigation to the usable viewport, keeping every permitted destination visible. */
+#dashboardShell #sidebar .eh-sidebar-navigation{padding:6px 0!important;min-height:0;flex:1;overflow-y:auto}
+#dashboardShell #sidebar .nav{gap:0!important;margin:0!important;padding:0!important}
+#dashboardShell #sidebar .nav-link{height:var(--eh-nav-row,42px)!important;min-height:var(--eh-nav-row,42px)!important}
+#dashboardShell #sidebar.eh-sidebar-dense .nav-link{font-size:11px!important}#dashboardShell #sidebar.eh-sidebar-dense .nav-link svg{width:17px!important;height:17px!important}
+/* Floating tools fade from solid theme purple on the right to clear on the left. */
+:root body #dashboardShell .top-actions{position:fixed!important;top:12px!important;right:16px!important;z-index:70;padding:8px 10px 8px 22px!important;border:0!important;box-shadow:none!important;background:linear-gradient(270deg,color-mix(in srgb,var(--hud-highlight) 22%,transparent),transparent)!important;gap:8px!important}
+#dashboardShell .top-actions::before,#dashboardShell .top-actions::after{display:none!important}
+#dashboardShell .top-actions .eh-role-view{position:relative;display:flex;align-items:center;border:0!important;padding:0!important;gap:8px!important;transition:width .22s ease}
+#dashboardShell .top-actions .eh-role-view>label{max-width:90px;opacity:1;overflow:hidden;white-space:nowrap;transition:max-width .22s ease,opacity .16s ease}
+#dashboardShell .eh-floating-role-icon{display:none;position:absolute;inset:0;align-items:center;justify-content:center;color:var(--hud-highlight);pointer-events:none}
+#dashboardShell .eh-floating-role-icon svg{width:19px;height:19px}
+#dashboardShell .top-actions #roleViewSelect{width:170px!important;transition:width .22s ease,color .16s ease;background:var(--bg)!important}
+#dashboardShell .top-actions #notificationsButton{width:118px!important;transition:width .22s ease,padding .22s ease;overflow:hidden}
+#dashboardShell .top-actions .eh-notification-label{max-width:90px;opacity:1;overflow:hidden;transition:max-width .22s ease,opacity .16s ease}
+#dashboardShell.eh-floating-compact .top-actions .eh-role-view>label{max-width:0;opacity:0;margin:0;display:none!important}
+:root body #dashboardShell.eh-floating-compact .top-actions #roleViewSelect{width:38px!important;min-width:38px!important;padding:0!important;color:transparent!important;appearance:none!important;background-image:none!important;cursor:pointer}
+#dashboardShell.eh-floating-compact #roleViewSelect option{color:var(--ink)!important;background:var(--surface)!important}
+#dashboardShell.eh-floating-compact .eh-floating-role-icon{display:flex}
+#dashboardShell.eh-floating-compact .top-actions #notificationsButton{width:38px!important;min-width:38px!important;padding:8px!important;gap:0!important}
+#dashboardShell.eh-floating-compact .eh-notification-label{max-width:0;opacity:0}
+@media(max-width:900px){#dashboardShell .top-actions #roleViewSelect{width:100px!important}#dashboardShell .top-actions #notificationsButton{width:36px!important}#dashboardShell .topbar{min-height:66px!important}#dashboardShell .top-actions .eh-role-view>label{display:none!important}}
+@media(prefers-reduced-motion:reduce){#dashboardShell .top-actions :is(.eh-role-view,label,#roleViewSelect,#notificationsButton,.eh-notification-label){transition:none!important}}
+#dashboardShell .eh-floating-role-icon{z-index:1}
+/* Match the floating notification control to the role selector surface. */
+:root body #dashboardShell .top-actions #notificationsButton{background:var(--bg)!important}
+
+/* Role viewing is a personal setting; the floating tools retain only notifications. */
+:root body #dashboardShell [data-settings-panel=dashboard] .eh-settings-role-control:not(.hidden){display:flex!important;flex-direction:column!important;align-items:flex-start!important;gap:9px!important;padding:0 0 20px!important;margin:0 0 20px!important;border:0!important;border-bottom:1px solid var(--border)!important;background:transparent!important}
+:root body #dashboardShell .eh-settings-role-control>label{display:block!important;color:var(--ink)!important;font-size:14px!important;font-weight:600;letter-spacing:0;text-transform:none}
+:root body #dashboardShell .eh-settings-role-control #roleViewSelect{width:100%!important;max-width:360px!important;min-width:0!important;margin:0!important;height:40px!important;font-size:13px!important;color:var(--ink)!important;background:var(--bg)!important}
+#dashboardShell .eh-settings-role-control>p{margin:0;font-size:12px;line-height:1.5}
+:root body #dashboardShell [data-settings-panel=dashboard] .eh-settings-role-control:not(.hidden){height:auto!important;min-height:0!important;max-height:none!important;width:100%!important;max-width:none!important;position:static!important;overflow:visible!important;flex:none!important}
+:root body #dashboardShell .eh-settings-role-control>label{height:auto!important;max-height:none!important;line-height:1.5!important;white-space:normal!important}
+:root body #dashboardShell #roleViewControls.eh-settings-role-control:not(.hidden){height:auto!important;min-height:0!important;max-height:none!important;display:flex!important;flex-direction:column!important;align-items:flex-start!important;width:100%!important;gap:9px!important;padding:0 0 20px!important;margin:0 0 20px!important;border-bottom:1px solid var(--border)!important}
+:root body #dashboardShell #roleViewControls.eh-settings-role-control>label{display:block!important;position:static!important;max-width:none!important;opacity:1!important;font-size:14px!important;line-height:1.5!important;margin:0!important}
+
+:root body #dashboardShell #roleViewControls.eh-settings-role-control:not(.hidden){margin:24px 0 0!important;padding:20px 0 0!important;border:0!important;border-top:1px solid var(--border)!important}
+/* Compact map tiles keep a consistent footprint instead of stretching across each mode. */
+:root body :is(#dashboardShell,.eh-dashboard-maps-dialog) .eh-map-pool-gallery .eh-map-photo-grid{grid-template-columns:repeat(auto-fill,minmax(78px,92px))!important;gap:6px!important;justify-content:start}
+:root body :is(#dashboardShell,.eh-dashboard-maps-dialog) .eh-map-pool-gallery .eh-map-photo-card img{height:40px!important;min-height:0!important;aspect-ratio:auto!important;object-fit:cover}
+:root body :is(#dashboardShell,.eh-dashboard-maps-dialog) .eh-map-pool-gallery .eh-map-photo-card figcaption{padding:4px 5px!important;min-height:26px!important;font-size:10px!important;line-height:1.3!important}
+:root body :is(#dashboardShell,.eh-dashboard-maps-dialog) .eh-map-photo-card button.eh-map-note-action{top:3px!important;left:3px!important;right:auto!important;bottom:auto!important}
+@media(max-width:420px){:root body :is(#dashboardShell,.eh-dashboard-maps-dialog) .eh-map-pool-gallery .eh-map-photo-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important}}
+:root body :is(#dashboardShell,.eh-dashboard-maps-dialog) .eh-map-pool-gallery .eh-map-photo-card figcaption{height:auto!important;display:flex!important;align-items:center;box-sizing:border-box}
+/* Use the available row width for photos, with a slim map-name strip. */
+:root body :is(#dashboardShell,.eh-dashboard-maps-dialog) .eh-map-pool-gallery .eh-map-photo-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important;width:100%!important;gap:6px!important}
+:root body :is(#dashboardShell,.eh-dashboard-maps-dialog) .eh-map-pool-gallery .eh-map-photo-card{display:flex!important;flex-direction:column!important;grid-template-rows:none!important;width:100%!important}
+:root body :is(#dashboardShell,.eh-dashboard-maps-dialog) .eh-map-pool-gallery .eh-map-photo-card img{height:auto!important;aspect-ratio:16/10!important;min-height:48px!important;flex:none!important}
+:root body :is(#dashboardShell,.eh-dashboard-maps-dialog) .eh-map-pool-gallery .eh-map-photo-card figcaption{height:auto!important;min-height:20px!important;padding:2px 4px!important;line-height:1.25!important;flex:1!important}
+
+/* One existing sign-out control moves between the desktop footer and mobile mini profile. */
+@media(min-width:901px){
+ #dashboardShell #sidebar .eh-account-area{display:flex!important;align-items:center;gap:8px}
+ #dashboardShell #sidebar #openSelfProfile{flex:1!important;width:0!important;min-width:0!important;margin:0!important;padding:4px!important;gap:8px!important}
+ :root body #dashboardShell #sidebar #logout.eh-desktop-logout:not(.hidden){display:grid!important;place-items:center;width:32px!important;min-width:32px!important;height:34px!important;min-height:34px!important;padding:6px!important;margin:0!important;border:0!important;background:transparent!important;color:var(--muted)!important;clip-path:none!important;box-shadow:none!important;font-size:0!important;flex:none!important;cursor:pointer}
+ #dashboardShell #sidebar #logout.eh-desktop-logout svg{width:20px;height:20px}#dashboardShell #sidebar #logout.eh-desktop-logout:hover{color:var(--hud-highlight)!important;background:var(--accent-bg)!important}
+ #accountDropup .eh-mini-session{display:none!important}
+ #dashboardShell.eh-sidebar-collapsed #sidebar .eh-account-area{flex-direction:column;gap:8px}#dashboardShell.eh-sidebar-collapsed #sidebar #openSelfProfile{width:100%!important;flex:none!important}
+}
+/* Consistent square search and centered account controls in the icon rail. */
+:root body #dashboardShell.eh-sidebar-collapsed #sidebar .eh-sidebar-search .hud-search-toggle{border:0!important;border-radius:0!important;clip-path:none!important;background:transparent!important;color:var(--muted)!important;box-shadow:none!important}
+@media(min-width:901px){
+ #dashboardShell:not(.eh-sidebar-collapsed) #sidebar .eh-sidebar-search kbd{display:inline-block!important;flex:none;font:500 10px/1.5 'Bai Jamjuree',sans-serif;color:var(--muted);padding:1px 4px;border:1px solid var(--border)}
+ :root body #dashboardShell.eh-sidebar-collapsed #sidebar #openSelfProfile{display:flex!important;align-items:center!important;justify-content:center!important;width:40px!important;min-width:40px!important;height:40px!important;min-height:40px!important;padding:0!important;margin:0 auto!important;flex:none!important}
+ #dashboardShell.eh-sidebar-collapsed #sidebar #openSelfProfile .avatar{margin:0!important;flex:0 0 34px!important;width:34px!important;height:34px!important;min-width:34px!important}
+}
+.eh-map-set-tabs{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:0 0 12px;min-width:0}
+:root body :is(#dashboardShell,dialog) .eh-map-set-choice{min-height:28px;padding:4px 10px;border:1px solid var(--border)!important;border-radius:0!important;clip-path:none!important;background:var(--bg)!important;color:var(--muted)!important;font:600 11px/1.4 'Bai Jamjuree',sans-serif;max-width:100%;overflow-wrap:anywhere;cursor:pointer}
+:root body :is(#dashboardShell,dialog) .eh-map-set-choice[aria-pressed=true]{color:var(--hud-highlight)!important;border-color:var(--hud-highlight)!important;background:var(--accent-bg)!important}
+:root body :is(#dashboardShell,dialog) .eh-map-set-add{display:grid;place-items:center;width:28px;height:28px;padding:4px;border:0!important;clip-path:none!important;background:transparent!important;color:var(--muted)!important;cursor:pointer}
+.eh-map-set-add svg{width:18px;height:18px}.eh-map-set-name{display:block;margin-top:16px}.eh-map-set-name input{max-width:360px;margin-top:6px}
+#dashMapPoolCard>.eh-map-set-tabs{flex-shrink:0}
+/* Staff unread concerns mirror the reference's yellow count and collapsed indicator. */
+#dashboardShell #sidebar .nav-link>.eh-concern-unread:not([hidden]){display:inline-flex!important;align-items:center;justify-content:center;margin-left:auto;min-width:18px;height:18px;padding:0 5px;background:#f5c542;color:#211b08;font:700 10px/1 'Bai Jamjuree',sans-serif;border:0;flex:none}
+#dashboardShell #sidebar .nav-link>.eh-concern-unread[hidden]{display:none!important}
+@media(min-width:901px){#dashboardShell.eh-sidebar-collapsed #sidebar .nav-link>.eh-concern-unread:not([hidden]){position:absolute;top:5px;right:12px;width:7px;min-width:7px;height:7px;padding:0;font-size:0}}
+/* Keep the account button on the actual centerline of the collapsed rail. */
+@media(min-width:901px){:root body #dashboardShell.eh-sidebar-collapsed #sidebar .eh-account-area{width:100%!important;min-width:0!important;align-items:center!important;padding-left:0!important;padding-right:0!important;box-sizing:border-box!important}:root body #dashboardShell.eh-sidebar-collapsed #sidebar #openSelfProfile{align-self:center!important;margin-left:0!important;margin-right:0!important}}
+/* The removed desktop top bar no longer reserves a blank strip above headings. */
+@media(min-width:901px){:root body #dashboardShell #pageContent{padding-top:24px!important}:root body #dashboardShell #pageContent [data-panel]>.eh-heading{padding-right:150px!important;box-sizing:border-box}:root body #dashboardShell #pageContent [data-panel]>.eh-heading>#reportComposer{right:150px!important}}
+@media(min-width:901px){:root body #dashboardShell.eh-sidebar-collapsed #sidebar .eh-account-area{margin-left:0!important;margin-right:0!important}}
+/* Keep practice suggestions compact so roster and proposal controls stay in view. */
+#dashboardShell #pageContent #practiceSuggestions{padding:12px!important}
+#dashboardShell #pageContent #practiceSuggestions>.eh-practice-heading{padding-bottom:6px!important;margin-bottom:5px!important}
+#dashboardShell #practiceSuggestions .eh-practice-heading h2{font-size:17px!important;line-height:1.15!important}
+#dashboardShell #pageContent #practiceSuggestions .eh-practice-window{padding:5px 0!important;gap:2px 6px!important}
+#dashboardShell #practiceSuggestions .eh-practice-row-info strong{font-size:11px!important;line-height:1.25!important}
+#dashboardShell #practiceSuggestions .eh-practice-row-info small{font-size:9px!important;line-height:1.3!important}
+#dashboardShell #practiceSuggestions .eh-practice-availability-detail{padding:4px 5px!important;margin:3px 0 0!important;gap:5px!important}
+#dashboardShell #practiceSuggestions .eh-practice-availability-detail span{font-size:10px!important;line-height:1.3!important}
+@media(min-width:1101px){#dashboardShell #pageContent .hud-availability-sidebar{grid-template-rows:minmax(0,360px) auto!important;align-content:start!important}#dashboardShell #pageContent .hud-availability-sidebar>#practiceSuggestions{max-height:360px!important;min-height:0!important}#dashboardShell #practiceSuggestions>[data-windows]{overflow:auto!important}#dashboardShell #pageContent .hud-availability-sidebar>.hud-availability-players{max-height:none!important;overflow:visible!important}}
+@media(max-width:1100px){#dashboardShell #practiceSuggestions>[data-windows]{max-height:360px!important;overflow:auto!important}}
+@media(min-width:901px){:root body #dashboardShell #pageContent [data-panel]>.eh-heading{padding-right:0!important}:root body #dashboardShell #pageContent [data-panel]>.eh-heading>#reportComposer{right:0!important}}
+.eh-heading>.eh-float-clearance{transform:none!important;align-self:flex-start!important;margin-top:var(--eh-float-clearance,0px)!important}
+@media(max-width:900px){
+ :root body #dashboardShell .topbar>.top-left{position:fixed;top:12px;left:12px;z-index:70;display:flex!important;align-items:center;gap:8px!important;min-height:46px;padding:6px 12px 6px 8px!important;border:0!important;background:linear-gradient(270deg,color-mix(in srgb,var(--hud-highlight) 22%,transparent),transparent)!important;box-shadow:none!important}
+ #dashboardShell .topbar>.top-left #menuButton{background:var(--bg)!important;border:1px solid var(--border)!important;clip-path:none!important;width:32px;height:32px;padding:5px!important}
+}
+@media(max-width:900px){
+ :root body #dashboardShell .topbar>.top-left{background:linear-gradient(90deg,color-mix(in srgb,var(--hud-highlight) 22%,transparent),transparent)!important}
+ :root body #dashboardShell #sidebar{width:85vw!important;max-width:85vw!important;min-width:0!important;margin:0!important;background:var(--surface)!important;border:1px solid var(--border)!important;box-sizing:border-box}
+ #dashboardShell #sidebar::before,#dashboardShell #sidebar::after{content:'';position:absolute;width:11px;height:11px;border:2px solid var(--hud-highlight);pointer-events:none;z-index:2}
+ #dashboardShell #sidebar::before{top:0;left:0;border-right:0;border-bottom:0}#dashboardShell #sidebar::after{bottom:0;right:0;border-left:0;border-top:0}
+ :root body #dashboardShell #sidebar #closeMobileNav{display:grid!important;place-items:center;top:20px;right:10px;width:32px;height:32px;min-height:32px;padding:6px!important;clip-path:none!important;border-radius:0!important;border:0!important;background:transparent!important;color:var(--muted)!important;box-shadow:none!important}
+ #dashboardShell #sidebar #closeMobileNav:hover{color:var(--hud-highlight)!important;background:var(--accent-bg)!important}
+ #dashboardShell #sidebar .eh-sidebar-header{border-bottom:1px solid var(--border)!important}#dashboardShell #sidebar .eh-sidebar-search{border:1px solid var(--border)!important;border-radius:0!important;background:var(--bg)!important}
+}
+@media(max-width:900px){:root body #dashboardShell .topbar>.top-left{left:0!important;padding-left:max(8px,env(safe-area-inset-left))!important}:root body #dashboardShell .top-actions{right:0!important;padding-right:max(8px,env(safe-area-inset-right))!important}}
+
+body #hudSlotPopover{opacity:0;transform:translateY(3px);transition:opacity .14s ease,transform .14s ease;will-change:opacity;max-height:calc(100dvh - 24px);overflow:hidden}
+body #hudSlotPopover.is-visible{opacity:1;transform:translateY(0);transition:opacity .14s ease,transform .14s ease,left .1s ease-out,top .1s ease-out}
+@media(prefers-reduced-motion:reduce){body #hudSlotPopover,body #hudSlotPopover.is-visible{transition:none!important;transform:none!important}}
+@media(max-width:900px){:root body #dashboardShell .topbar>.top-left,:root body #dashboardShell .top-actions{top:0!important;padding-top:max(6px,env(safe-area-inset-top))!important}:root body #dashboardShell .topbar{min-height:54px!important}:root body #dashboardShell #pageContent{padding-top:12px!important}}
+/* A continuous mobile header keeps complete page titles on one shared gradient. */
+@media(max-width:900px){
+ :root body #dashboardShell .topbar{position:fixed!important;inset:0 0 auto!important;width:100%!important;min-height:54px!important;height:auto!important;display:flex!important;align-items:center!important;gap:8px!important;padding:max(6px,env(safe-area-inset-top)) max(8px,env(safe-area-inset-right)) 6px max(8px,env(safe-area-inset-left))!important;z-index:70!important;background:linear-gradient(90deg,color-mix(in srgb,var(--hud-highlight) 22%,var(--bg)),var(--bg) 42%,var(--bg) 58%,color-mix(in srgb,var(--hud-highlight) 22%,var(--bg)))!important;border:0!important;box-shadow:none!important;box-sizing:border-box}
+ :root body #dashboardShell .topbar>.top-left{position:static!important;inset:auto!important;flex:1 1 auto!important;min-width:0!important;min-height:0!important;padding:0!important;gap:8px!important;background:transparent!important}
+ :root body #dashboardShell .topbar .top-actions{position:static!important;inset:auto!important;flex:0 0 auto!important;padding:0!important;margin-left:auto!important;background:transparent!important}
+ :root body #dashboardShell .topbar #breadcrumbCurrent{max-width:none!important;width:auto!important;overflow:visible!important;text-overflow:clip!important;white-space:normal!important;font-size:11px!important;line-height:1.25!important;overflow-wrap:normal!important}
+ :root body #dashboardShell #menuButton{flex:none!important}
+ :root body #dashboardShell .main-column{padding-top:66px!important}
+}
+@media(max-width:900px){
+ :root body #dashboardShell .topbar{background:linear-gradient(90deg,color-mix(in srgb,var(--hud-highlight) 22%,transparent),color-mix(in srgb,var(--bg) 25%,transparent) 42%,color-mix(in srgb,var(--bg) 25%,transparent) 58%,color-mix(in srgb,var(--hud-highlight) 22%,transparent))!important;backdrop-filter:blur(14px) saturate(1.1)!important;-webkit-backdrop-filter:blur(14px) saturate(1.1)!important}
+ @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){:root body #dashboardShell .topbar{background:color-mix(in srgb,var(--surface) 94%,transparent)!important}}
+}
+@media(max-width:900px){:root body #dashboardShell .topbar>.top-left #menuButton{background:transparent!important;border:0!important;box-shadow:none!important;clip-path:none!important;color:var(--ink)!important}}
+/* Give the mobile greeting two intentional lines instead of shrinking the full sentence. */
+@media(max-width:900px){
+ :root body #dashboardShell #pageContent [data-panel=dashboard]>.eh-dashboard-heading h1{font-size:clamp(28px,8vw,40px)!important;white-space:normal!important;line-height:1.08!important}
+ :root body #dashboardShell #pageContent [data-panel=dashboard]>.eh-dashboard-heading h1 #welcome{display:block!important;white-space:nowrap!important;margin-top:3px!important;color:var(--hud-highlight)!important}
+}
+
+/* Main page titles share a desktop scale; section and dialog labels remain intact. */
+#dashboardShell #pageContent [data-panel]>.eh-heading .eh-kicker{display:none!important}
+@media(min-width:901px){
+ :root body #dashboardShell #pageContent [data-panel=dashboard]>.eh-dashboard-heading h1{font-size:clamp(32px,4vw,44px)!important}
+}
+
+@media(min-width:901px){
+ #dashboardShell #pageContent [data-panel=dashboard]>.eh-dashboard-heading>.eh-team-picker{align-self:start!important;padding-top:40px!important;transform:none!important}
+ #dashboardShell #pageContent .eh-dashboard-heading>#hudDashboardLayoutTools{grid-column:1/-1!important;margin:0!important}
+}
+
+@media(min-width:901px){
+ #dashboardShell #sidebar .eh-footer-settings{display:grid!important;place-items:center!important;flex:none!important;width:32px!important;min-width:32px!important;height:34px!important;min-height:34px!important;padding:6px!important;margin:0!important;border:0!important;background:transparent!important;color:var(--muted)!important;clip-path:none!important;box-shadow:none!important}
+ #dashboardShell #sidebar .eh-footer-settings>span,#dashboardShell #sidebar .eh-footer-settings::before,#dashboardShell #sidebar .eh-footer-settings::after{display:none!important}
+ #dashboardShell #sidebar .eh-footer-settings svg{width:20px!important;height:20px!important;margin:0!important}
+ #dashboardShell #sidebar .eh-footer-settings:hover,#dashboardShell #sidebar .eh-footer-settings.active{color:var(--hud-highlight)!important;background:var(--accent-bg)!important}
+}
+@media(min-width:901px){
+ #dashboardShell #sidebar #openSelfProfile>div:not(.avatar){min-width:0!important;flex:1!important}
+ #dashboardShell #sidebar #sidebarName{display:block!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+ #dashboardShell #sidebar #openSelfProfile>.eh-profile-chevron{display:none!important}
+}
+@media(min-width:901px){
+ #dashboardShell:not(.eh-sidebar-collapsed) #sidebar .eh-account-area{padding:10px 8px!important;margin-left:0!important;margin-right:0!important;gap:2px!important;width:100%!important;box-sizing:border-box!important}
+ #dashboardShell:not(.eh-sidebar-collapsed) #sidebar #openSelfProfile{padding:4px 0!important;gap:6px!important}
+ #dashboardShell:not(.eh-sidebar-collapsed) #sidebar .eh-footer-settings,#dashboardShell:not(.eh-sidebar-collapsed) #sidebar #logout.eh-desktop-logout{width:28px!important;min-width:28px!important;padding:4px!important}
+}
+/* Keep Settings actions in the header's layout instead of floating over its panel. */
+#dashboardShell #pageContent [data-panel=settings]>.eh-heading{display:flex!important;align-items:flex-start!important;height:auto!important;min-height:0!important;gap:16px!important}
+#dashboardShell #pageContent [data-panel=settings]>.eh-heading>h1{flex:1!important;min-width:0!important}
+#dashboardShell #pageContent [data-panel=settings]>.eh-heading>#pfSave{float:none!important;position:static!important;flex:none!important}
+@media(min-width:901px){
+ #dashboardShell:not(.eh-sidebar-collapsed) #sidebar #openSelfProfile{align-items:center!important;gap:8px!important}
+ #dashboardShell:not(.eh-sidebar-collapsed) #sidebar #openSelfProfile>div:not(.avatar){display:flex!important;flex-direction:column!important;align-items:flex-start!important;justify-content:center!important;gap:4px!important}
+ #dashboardShell #sidebar #sidebarName{margin:0!important;padding:0!important;line-height:1.2!important;width:100%!important}
+ #dashboardShell #sidebar #sidebarRole{margin:0!important;padding:0!important;line-height:1!important;gap:0!important}
+}
+
+#profileForm .eh-profile-editor-toolbar>#pfSave{margin:0 0 0 auto!important;flex:none!important;transform:none!important;position:static!important;float:none!important}
+
+.eh-note-category-row{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px;min-width:0}
+.eh-note-category-row>.eh-note-tabs{flex:1;min-width:0;margin:0!important}
+.eh-note-category-row>#reportComposer{position:static!important;transform:none!important;margin:0!important;flex:none;padding:0!important;border:0!important;background:none!important}
+#dashboardShell .sch-type[data-event-type=practice]{background:#83c9a4!important;color:#10221a!important}
+#dashboardShell .sch-type[data-event-type=match]{background:var(--hud-blue)!important;color:#061922!important}
+#dashboardShell .sch-type[data-event-type=vod]{background:var(--hud-highlight)!important;color:var(--bg)!important}
+#dashboardShell .sch-type[data-event-type=esports]{background:#f5bd63!important;color:#261700!important}
+@media(max-width:600px){.eh-note-category-row{gap:8px}.eh-note-category-row .eh-note-tabs button{padding-inline:8px}.eh-note-category-row #newVodReport{padding:8px!important;font-size:11px!important}}
+
+/* Header controls participate in layout at every scroll position. */
+#dashboardShell #pageContent [data-panel]:not([data-panel=dashboard])>.eh-heading{display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;align-items:start!important;gap:6px 18px!important;height:auto!important;min-height:0!important}
+#dashboardShell #pageContent [data-panel]:not([data-panel=dashboard])>.eh-heading>:is(h1,p){grid-column:1!important;min-width:0!important}
+#dashboardShell #pageContent .eh-heading>.eh-page-heading-actions{grid-column:2!important;grid-row:1 / span 3!important;display:flex!important;align-items:center!important;justify-content:flex-end!important;gap:8px!important;flex-wrap:wrap!important;position:static!important;margin:40px 0 0!important;max-width:100%!important}
+#dashboardShell #pageContent .eh-page-heading-actions>:is(button,a,.hud-page-actions,.eh-team-picker,.hud-team-header-selector,#reportComposer){position:static!important;inset:auto!important;transform:none!important;float:none!important;margin:0!important}
+@media(max-width:900px){#dashboardShell #pageContent [data-panel]:not([data-panel=dashboard])>.eh-heading{grid-template-columns:minmax(0,1fr)!important}#dashboardShell #pageContent .eh-heading>.eh-page-heading-actions{grid-column:1!important;grid-row:auto!important;margin:8px 0 0!important}}
+
+#dashboardShell .sch-event.sch-practice,#dashboardShell .sch-event.sch-scrim{border-left-color:#83c9a4!important}
+#dashboardShell .sch-event.sch-vod{border-left-color:var(--hud-highlight)!important}
+#dashboardShell .sch-event.sch-esports{border-left-color:#f5bd63!important}
+#dashboardShell .sch-type[data-event-type=event]{background:var(--muted)!important;color:var(--bg)!important}
+#dashboardShell .sch-chip.sch-practice,#dashboardShell .sch-chip.sch-scrim{border-left:3px solid #83c9a4!important;background:color-mix(in srgb,#83c9a4 14%,var(--surface))!important}
+#dashboardShell .sch-chip.sch-match{border-left:3px solid var(--hud-blue)!important;background:color-mix(in srgb,var(--hud-blue) 14%,var(--surface))!important}
+#dashboardShell .sch-chip.sch-vod{border-left:3px solid var(--hud-highlight)!important;background:color-mix(in srgb,var(--hud-highlight) 14%,var(--surface))!important}
+#dashboardShell .sch-chip.sch-esports{border-left:3px solid #f5bd63!important;background:color-mix(in srgb,#f5bd63 14%,var(--surface))!important}
+@media(min-width:901px){#dashboardShell:not(.eh-floating-compact) .top-actions #notificationsButton{width:154px!important}#dashboardShell:not(.eh-floating-compact) .top-actions .eh-notification-label{flex-shrink:0!important}}
+#dashboardShell #pageContent .eh-heading>.eh-page-heading-actions:empty,#dashboardShell #pageContent .eh-heading>.eh-page-heading-actions:not(:has(>:not([hidden]):not(.hidden))){display:none!important}
