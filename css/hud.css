@@ -1246,3 +1246,77 @@ body #customStatusDialog .eh-status-fields>label:first-child{display:grid;grid-t
 body #customStatusDialog .eh-status-fields>label:first-child input{grid-column:1/-1;grid-row:2}
 body #customStatusDialog .eh-status-fields .eh-emoji-trigger{position:static!important;grid-column:2;grid-row:2;align-self:center;justify-self:end;z-index:1;margin:0 1px 0 0!important;right:auto;bottom:auto}
 body #customStatusDialog .eh-status-fields input{margin:0!important}
+
+/* Notes-style filtering with one shared frame and an inline conversation pane. */
+#dashboardShell #review>.eh-row,#dashboardShell #review>.eh-muted{display:none}
+#dashboardShell .eh-concern-toolbar{grid-template-columns:minmax(0,1fr)}
+#concerns .hud-concern-choice{padding:14px 10px;gap:8px}
+#concerns .hud-concern-choice strong{line-height:1.4}
+#concerns .hud-concern-detail .eh-conversation-thread{border:0;background:transparent;box-shadow:none;padding:0}
+#concerns .hud-concern-detail .eh-conversation-thread::before,#concerns .hud-concern-detail .eh-conversation-thread::after{display:none}
+#concerns .hud-concern-detail .eh-conversation-thread>.eh-row{gap:12px;align-items:center}
+#concerns .hud-concern-detail .eh-conversation-thread h2{line-height:1.2}
+
+/* Filters sit on the page; only the selector and conversation receive HUD frames. */
+#dashboardShell #pageContent #review{padding:0!important;border:0!important;background:transparent!important;box-shadow:none!important}
+#dashboardShell #pageContent #review::before,#dashboardShell #pageContent #review::after{display:none!important}
+#dashboardShell #pageContent #concerns .hud-concern-library,#dashboardShell #pageContent #concerns .hud-concern-detail{padding:18px!important;margin:0!important;border:1px solid var(--border)!important;min-width:0}
+#concerns .hud-concern-workspace{gap:20px;align-items:start}
+#concerns .eh-note-tabs{margin-bottom:14px}
+#concerns .eh-concern-toolbar{margin-bottom:20px}
+#concerns .hud-concern-library .eh-reports-total{margin-top:0}
+@media(max-width:900px){#concerns .hud-concern-library .eh-concern-list{max-height:280px;overflow:auto}}
+
+.eh-admin-export>p{max-width:850px;line-height:1.65}.eh-export-datasets{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin:20px 0;padding:18px;border:1px solid var(--border)}.eh-export-datasets legend{padding:0 8px;font-weight:700}.eh-admin-export .eh-export-check{display:flex;align-items:flex-start;gap:9px;font-size:13px;line-height:1.5}.eh-export-check input{flex:0 0 auto;margin-top:3px;accent-color:var(--hud-highlight)}.eh-export-options{display:flex;gap:18px;flex-wrap:wrap;align-items:end;margin-bottom:20px}.eh-export-options>label{display:grid;gap:6px;flex:1 1 200px}.eh-export-options>.eh-export-check{display:flex;align-self:center}.eh-admin-export>.eh-row{gap:10px;justify-content:flex-start;flex-wrap:wrap}.eh-admin-export [data-export-status]{min-height:24px;overflow-wrap:anywhere}
+
+/* Embedded Clerk forms share the site's single HUD frame; keep verification and errors intact. */
+#loginPage :is(#clerk-sign-in,#clerk-sign-up){width:100%;min-width:0;margin-top:22px}
+#loginPage :is(#clerk-sign-in,#clerk-sign-up) :is(.cl-rootBox,.cl-cardBox,.cl-card){width:100%!important;max-width:100%!important;border:0!important;border-radius:0!important;box-shadow:none!important;background:transparent!important;min-width:0}
+#loginPage :is(#clerk-sign-in,#clerk-sign-up) .cl-card{padding:0!important;gap:20px!important}
+#loginPage :is(#clerk-sign-in,#clerk-sign-up) .cl-main{gap:20px!important}
+#loginPage :is(#clerk-sign-in,#clerk-sign-up) .cl-form{gap:18px!important}
+#loginPage :is(#clerk-sign-in,#clerk-sign-up) .cl-formField{gap:7px!important}
+#loginPage :is(#clerk-sign-in,#clerk-sign-up) .cl-formFieldInput{margin:0!important;min-height:44px!important;padding:10px 12px!important;font-family:'Bai Jamjuree',sans-serif!important}
+#loginPage :is(#clerk-sign-in,#clerk-sign-up) .cl-formFieldInput:focus{border-color:var(--hud-highlight)!important;box-shadow:none!important;outline:none!important}
+#loginPage :is(#clerk-sign-in,#clerk-sign-up) .cl-formFieldInput:focus-visible{outline:1px solid var(--hud-highlight)!important;outline-offset:-1px!important}
+#loginPage :is(#clerk-sign-in,#clerk-sign-up) .cl-socialButtonsBlockButton{clip-path:none!important;border:1px solid var(--border)!important;border-radius:0!important;background:var(--bg)!important;min-height:44px!important;padding:10px 14px!important;overflow:visible!important}
+#loginPage :is(#clerk-sign-in,#clerk-sign-up) .cl-socialButtonsBlockButton:hover{border-color:var(--hud-highlight)!important}
+#loginPage :is(#clerk-sign-in,#clerk-sign-up) .cl-socialButtonsBlockButton :is(.cl-socialButtonsBlockButtonText,.cl-socialButtonsProviderIcon){flex-shrink:0}
+#loginPage :is(#clerk-sign-in,#clerk-sign-up) .cl-formButtonPrimary{background:var(--hud-purple)!important;color:var(--game-button-ink,#fff)!important;min-height:44px!important;margin:0!important;box-shadow:none!important;clip-path:polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,8px 100%,0 calc(100% - 8px))!important}
+#loginPage :is(#clerk-sign-in,#clerk-sign-up) .cl-headerTitle{font-size:18px!important;line-height:1.3!important;text-transform:none!important;letter-spacing:0!important}
+#loginPage :is(#clerk-sign-in,#clerk-sign-up) .cl-headerSubtitle{font-size:13px!important;line-height:1.6!important}
+#loginPage :is(#clerk-sign-in,#clerk-sign-up) .cl-footer{background:transparent!important;border:0!important;box-shadow:none!important;padding:16px 0 0!important;gap:12px!important}
+#loginPage .eh-auth-tabs{display:flex!important;gap:0!important;padding:0!important;border:0!important;border-bottom:1px solid var(--border)!important;background:transparent!important}
+#loginPage .eh-auth-tabs .eh-btn{flex:1;min-height:44px;background:transparent!important;color:var(--muted)!important;clip-path:none!important;border:0!important;border-bottom:2px solid transparent!important;box-shadow:none!important}
+#loginPage .eh-auth-tabs .eh-btn[aria-pressed=true]{color:var(--hud-highlight)!important;border-bottom-color:var(--hud-highlight)!important;background:color-mix(in srgb,var(--hud-highlight) 8%,transparent)!important}
+
+/* Transient notices use the top layer and never move page content. */
+#notice,#guestNotice{display:none!important}
+body #appToast{position:fixed;inset:18px 18px auto auto;margin:0;width:min(390px,calc(100vw - 28px));max-width:none;box-sizing:border-box;display:grid;grid-template-columns:minmax(0,1fr) 28px;gap:12px;padding:16px 16px 19px;background:var(--surface);color:var(--ink);border:1px solid var(--border);border-left:3px solid var(--hud-highlight);border-radius:0;box-shadow:var(--hud-shadow);overflow:hidden;z-index:20000;animation:eh-toast-enter .18s ease-out}
+body #appToast:not(:popover-open){display:none}
+.eh-toast-content strong{display:block;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--hud-highlight)}.eh-toast-content p{margin:6px 0 0;font-size:13px;line-height:1.55;overflow-wrap:anywhere}
+body #appToast .eh-icon-action{align-self:start;width:28px!important;height:28px!important;padding:4px!important;min-height:28px!important;background:transparent!important;border:0!important;color:var(--muted)!important;clip-path:none!important;cursor:pointer}
+body #appToast .eh-icon-action:hover{color:var(--hud-highlight)!important}body #appToast .eh-icon-action:focus-visible{outline:1px solid var(--hud-highlight);outline-offset:1px}
+.eh-toast-countdown{position:absolute;inset:auto 0 0;height:3px;background:var(--hud-highlight);transform-origin:left}
+body #appToast[data-kind=error]{border-left-color:var(--warning,#f59c1e)}body #appToast[data-kind=error] .eh-toast-content strong{color:var(--warning,#f59c1e)}
+@keyframes eh-toast-enter{from{opacity:0;translate:12px 0}to{opacity:1;translate:0 0}}
+@media(prefers-reduced-motion:reduce){body #appToast{animation:none}}
+@media(max-width:600px){body #appToast{top:12px;right:12px;width:calc(100vw - 24px)}}
+/* Clerk owns the step heading, avoiding two competing titles in one auth card. */
+#loginPage :is(#authCard,#signUpCard)>h2,#loginPage :is(#authCard,#signUpCard)>p.eh-muted:not([role]){display:none}
+body[data-public-page=signin] #loginPage main.eh-product-auth{padding-top:32px!important;gap:20px!important}
+body[data-public-page=signin] .eh-product-auth-heading h1{font-size:30px!important;margin-bottom:10px!important}
+/* Explicit four-sided edges prevent global HUD and Clerk inset styles clipping the left side. */
+#loginPage :is(#clerk-sign-in,#clerk-sign-up) :is(.cl-formFieldInput,.cl-socialButtonsBlockButton){border:1px solid var(--border)!important;border-inline:1px solid var(--border)!important;border-block:1px solid var(--border)!important;clip-path:none!important;mask:none!important;box-shadow:none!important;box-sizing:border-box!important}
+#loginPage :is(#clerk-sign-in,#clerk-sign-up) .cl-formButtonPrimary{border:1px solid var(--hud-purple)!important;border-inline:1px solid var(--hud-purple)!important;border-block:1px solid var(--hud-purple)!important;clip-path:none!important;mask:none!important;box-shadow:none!important;box-sizing:border-box!important}
+#loginPage :is(#clerk-sign-in,#clerk-sign-up) .cl-formFieldInput:focus{border-color:var(--hud-highlight)!important}
+
+/* First-time setup is a full-screen, account-scoped onboarding workspace. */
+body #onboardingDialog.eh-onboarding-live{position:fixed!important;inset:0!important;width:100vw!important;max-width:100vw!important;height:100dvh!important;max-height:100dvh!important;margin:0!important;padding:0!important;border:0!important;border-radius:0!important;background:var(--bg)!important;overflow:hidden!important}
+body #onboardingDialog.eh-onboarding-live::before,body #onboardingDialog.eh-onboarding-live::after{display:none!important}.eh-onboarding-frame{display:block;width:100%;height:100%;border:0;background:var(--bg)}body #onboardingDialog.eh-onboarding-live>#onboardingForm{display:none!important}
+.eh-following-options{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:16px 0}.eh-following-choice{display:flex!important;align-items:center;gap:9px;font-size:12px}.eh-following-choice input{width:auto!important;min-height:0!important;margin:0!important;accent-color:var(--hud-highlight)}#followingTeamForm{margin-top:24px;padding-top:20px;border-top:1px solid var(--border)}
+
+/* Public roster uses the same square portraits and role chips as team rosters. */
+#dashPublicRoster{display:grid;gap:0}#dashPublicRoster .eh-public-roster-row{display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid var(--border);background:transparent}#dashPublicRoster .eh-public-roster-row:last-child{border-bottom:0}#dashPublicRoster .eh-public-roster-picture{flex:0 0 42px;width:42px;height:42px}#dashPublicRoster .eh-roster-avatar{position:relative;display:grid;place-items:center;width:42px;height:42px;border:1px solid var(--border);background:var(--surface);color:var(--hud-highlight);overflow:hidden;border-radius:0;clip-path:none}#dashPublicRoster .eh-roster-avatar img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}#dashPublicRoster .eh-public-roster-identity{flex:1;min-width:0;color:var(--ink);overflow-wrap:anywhere}#dashPublicRoster .hud-role-chip{flex-shrink:0}@media(max-width:480px){#dashPublicRoster .eh-public-roster-row{gap:9px}#dashPublicRoster .hud-role-chip{font-size:10px;padding-inline:7px}}
+
+#dashboardShell #hudDashboardAvailability.hidden,#dashboardShell #hudDashboardAvailability[hidden],#dashboardShell #dashMapPoolCard.hidden{display:none!important}
