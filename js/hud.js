@@ -31,7 +31,7 @@
  const percent=document.createElement('div');percent.className='eh-hud-percent';const number=document.createElement('strong');number.textContent=percentage+'%';const caption=document.createElement('small');caption.textContent='weekly schedules submitted';percent.append(number,caption);
  text.className='eh-hud-availability-count';text.textContent=submitted+' of '+total+' players submitted';progress.dataset.squadSize=String(total);progress.max=total||1;progress.value=submitted;progress.hidden=!total;progress.setAttribute('aria-valuetext',submitted+' of '+total+' players submitted');progress.setAttribute('aria-label','Players with submitted availability');
  const ownSaved=data.schedules.has(String(s.me?.user?.id)),status=document.createElement('p');status.className='eh-hud-availability-status';status.textContent=ownSaved?'Your weekly availability is saved.':'Save your weekly availability to help your team plan.';
- const note=document.createElement('p');note.className='eh-muted';note.textContent=!total?'No starters or substitutes are assigned yet.':data.upcoming.length?data.atNext.length+' of '+total+' players marked available at the next session’s start.':'No upcoming session to check availability against.';box.replaceChildren(percent,text,progress,status,note);}
+ const note=document.createElement('p');note.className='eh-muted';note.textContent=!total?'No starters or substitutes are assigned yet.':data.upcoming.length?data.atNext.length+' of '+total+' players marked available at the next session’s start.':'No upcoming session to check availability against.';if(total&&submitted===total)box.replaceChildren(renderWeeklyAvailabilityInsights(data));else box.replaceChildren(percent,text,progress,status,note);}
  renderDashboard=function(...args){const result=render.apply(this,args);availabilityCard();return result;};if(s.me)availabilityCard();
  const sidebar=document.getElementById('sidebar'),query=matchMedia('(max-width:900px)');function syncNav(){const closed=query.matches&&!sidebar.classList.contains('open');sidebar.inert=closed;sidebar.setAttribute('aria-hidden',String(closed));}if(sidebar){new MutationObserver(syncNav).observe(sidebar,{attributes:true,attributeFilter:['class']});query.addEventListener('change',syncNav);syncNav();}
 })();
@@ -146,17 +146,29 @@
 /* Base44 preview's compact notification popover, using the existing authenticated inbox. */
 (()=>{
  const bell=$('notificationsButton');
- const preferencesInbox=openNotifications;
+
  bell.setAttribute('aria-haspopup','dialog');bell.setAttribute('aria-expanded','false');bell.setAttribute('aria-controls','hudNotificationPopover');
  function close(){const pop=$('hudNotificationPopover');pop?.remove();bell.setAttribute('aria-expanded','false');}
+ async function openNotificationPreferences(pop,scope){
+  if(!pop.isConnected||scope!==profileScope())return;pop.dataset.mode='preferences';pop.setAttribute('aria-label','Notification Preferences');
+  const header=schEl('header',''),back=schEl('button','hud-inbox-close'),title=schEl('strong','','Notification Preferences'),dismiss=schEl('button','hud-inbox-close');back.type=dismiss.type='button';back.setAttribute('aria-label','Back to Notifications');dismiss.setAttribute('aria-label','Close Preferences');
+  back.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18"/></svg>';dismiss.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>';back.onclick=()=>{close();void openNotifications();};dismiss.onclick=close;header.append(back,title,dismiss);
+  const message=schEl('p','hud-inbox-status','Loading preferences…');message.setAttribute('role','status');pop.replaceChildren(header,message);back.focus({preventScroll:true});
+  try{await refreshNotifications(true);if(!pop.isConnected||scope!==profileScope())return;const saved=s.notifications?.preferences||{},form=schEl('form','hud-notification-preferences'),intro=schEl('p','eh-muted','Choose which in-site alerts you receive while EsportsHub is open.'),field=schEl('fieldset',''),legend=schEl('legend','','Event Reminders'),hint=schEl('p','eh-muted','Remind me before an event starts.'),choices=schEl('div','hud-reminder-choices');field.append(legend,hint,choices);
+   for(const [value,label]of [[0,'Off'],[15,'15 Min'],[30,'30 Min'],[60,'1 Hour'],[120,'2 Hours'],[1440,'1 Day']]){const choice=schEl('label',''),input=document.createElement('input');input.type='radio';input.name='reminderMinutes';input.value=String(value);input.checked=Number(saved.reminder_minutes??60)===value;choice.append(input,schEl('span','',label));choices.append(choice);}
+   const toggle=schEl('label','hud-notification-update-toggle'),copy=schEl('span',''),updates=document.createElement('input');updates.type='checkbox';updates.name='updates';updates.checked=Boolean(saved.updates);copy.append(schEl('strong','','Schedule Updates'),schEl('small','eh-muted','Changes to your team’s scheduled events.'));toggle.append(copy,updates);
+   const actions=schEl('footer',''),save=schEl('button','eh-btn hud-primary','Save Preferences');save.type='submit';actions.append(save);message.textContent='';form.append(intro,field,toggle,message,actions);pop.replaceChildren(header,form);
+   form.onsubmit=async event=>{event.preventDefault();if(save.disabled||!pop.isConnected||scope!==profileScope())return;const payload={reminderMinutes:Number(form.elements.reminderMinutes.value),updates:updates.checked};save.disabled=true;message.textContent='Saving…';try{await api('/me/notification-preferences','PUT',payload);if(!pop.isConnected||scope!==profileScope())return;s.notifications.preferences={reminder_minutes:payload.reminderMinutes,updates:payload.updates?1:0};message.textContent='Preferences saved.';}catch(error){if(pop.isConnected)message.textContent='Could not save preferences: '+error.message;}finally{if(pop.isConnected)save.disabled=false;}};
+  }catch(error){if(pop.isConnected)message.textContent='Could not load preferences: '+error.message;}
+ }
  function relative(value){const delta=Math.max(0,Date.now()-Date.parse(value));return delta<60000?'Just now':delta<3600000?Math.floor(delta/60000)+'m ago':delta<86400000?Math.floor(delta/3600000)+'h ago':Math.floor(delta/86400000)+'d ago';}
  openNotifications=async function(){
   if($('hudNotificationPopover')){close();return;}if(!s.me)return;
   setAccountMenu(false);const scope=profileScope(),pop=schEl('section','hud-notification-popover');pop.id='hudNotificationPopover';pop.dataset.scope=scope;pop.dataset.access=s.profileAccessKey||'';pop.setAttribute('role','dialog');pop.setAttribute('aria-label','Notifications');
   const header=schEl('header',''),count=schEl('small',''),dismiss=schEl('button','hud-inbox-close','×');dismiss.type='button';dismiss.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>';dismiss.setAttribute('aria-label','Close Notifications');dismiss.onclick=close;header.append(schEl('strong','','Notifications'),count,dismiss);
-  const list=schEl('div','hud-notification-list'),status=schEl('p','hud-inbox-status','Loading notifications…');status.setAttribute('role','status');const footer=schEl('footer',''),preferences=schEl('button','','Preferences');preferences.type='button';preferences.onclick=()=>{close();void preferencesInbox();};footer.append(preferences);pop.append(header,list,status,footer);document.querySelector('.top-actions').append(pop);bell.setAttribute('aria-expanded','true');dismiss.focus({preventScroll:true});
+  const list=schEl('div','hud-notification-list'),status=schEl('p','hud-inbox-status','Loading notifications…');status.setAttribute('role','status');const footer=schEl('footer',''),preferences=schEl('button','','Preferences');preferences.type='button';preferences.onclick=()=>void openNotificationPreferences(pop,scope);footer.append(preferences);pop.append(header,list,status,footer);document.querySelector('.top-actions').append(pop);bell.setAttribute('aria-expanded','true');dismiss.focus({preventScroll:true});
   try{
-   await refreshNotifications(true);if(!pop.isConnected||scope!==profileScope())return;
+   await refreshNotifications(true);if(!pop.isConnected||scope!==profileScope()||pop.dataset.mode==='preferences')return;
    const items=s.notifications?.items||[];status.textContent=items.length?'':"You're all caught up.";
    function counts(){const unread=items.filter(item=>!item.read).length;count.textContent=unread+' New';count.hidden=!unread;const badge=bell.querySelector('.eh-notification-badge');if(badge){badge.textContent=unread>99?'99+':String(unread);badge.hidden=!unread;}bell.setAttribute('aria-label','Open notifications, '+unread+' unread');}
    counts();
@@ -267,7 +279,7 @@ function upcomingVisibleCount(heights,available){let used=0,count=0;for(const he
 (()=>{
  const toolbar=document.querySelector('#profileForm .eh-profile-editor-toolbar'),save=$('pfSave');if(toolbar&&save){save.setAttribute('form','profileForm');save.classList.add('hud-primary');toolbar.append(save);}
  const panel=document.querySelector('[data-panel="concerns"]'),compose=panel?.querySelector('.eh-concern-compose'),headingConcerns=panel?.querySelector('.eh-heading');
- if(compose&&headingConcerns){const dialog=schEl('dialog','eh-dialog eh-panel eh-concern-composer'),close=schEl('button','eh-btn tiny','Cancel');dialog.id='concernComposerDialog';close.type='button';close.onclick=()=>dialog.close();compose.append(close);dialog.append(compose);document.body.append(dialog);const launch=schEl('button','eh-btn hud-primary','+ New Concern');launch.type='button';launch.onclick=()=>{if(!s.team||guestTeam(s.team))return;dialog.showModal();dialog.querySelector('.eh-document')?.focus();};headingConcerns.append(launch);}
+ if(compose&&headingConcerns){const dialog=schEl('dialog','eh-dialog eh-panel eh-concern-composer'),close=schEl('button','eh-btn tiny','Cancel');dialog.id='concernComposerDialog';close.type='button';close.onclick=()=>dialog.close();compose.append(close);dialog.append(compose);document.body.append(dialog);const launch=schEl('button','eh-btn hud-primary','+ New Concern');launch.id='newConcern';launch.type='button';launch.onclick=()=>{if(!s.team||guestTeam(s.team))return;dialog.showModal();dialog.querySelector('.eh-document')?.focus();};(document.querySelector('#concerns .eh-note-category-row')||headingConcerns).append(launch);}
 })();
 
 (()=>{const panel=document.querySelector('[data-panel="teams"]'),heading=panel?.querySelector('.eh-heading'),switcher=$('teamsMirror')?.closest('article');if(heading&&switcher){switcher.classList.add('hud-team-header-selector');heading.append(switcher);}})();
@@ -286,8 +298,8 @@ if(document.body.dataset.publicPage!=='signin'&&new URL(location.href).searchPar
 
 // Lock the underlying page for every modal, including nested popup windows.
 (()=>{
- const root=document.documentElement;let locked=false,position={x:0,y:0};
- function sync(){const open=Boolean(document.querySelector('dialog[open]'));if(open===locked)return;locked=open;if(open){position={x:window.scrollX,y:window.scrollY};root.classList.add('eh-modal-scroll-lock');}else{root.classList.remove('eh-modal-scroll-lock');window.scrollTo({left:position.x,top:position.y,behavior:'instant'});}}
+ const root=document.documentElement;let locked=false,position={x:0,y:0},opened=new Set();
+ function sync(){const dialogs=[...document.querySelectorAll('dialog[open]')].filter(dialog=>dialog.matches(':modal'));for(const dialog of dialogs)if(!opened.has(dialog)){dialog.scrollTop=0;dialog.scrollLeft=0;}opened=new Set(dialogs);const open=dialogs.length>0;if(open===locked)return;locked=open;if(open){position={x:window.scrollX,y:window.scrollY};root.classList.add('eh-modal-scroll-lock');}else{root.classList.remove('eh-modal-scroll-lock');window.scrollTo({left:position.x,top:position.y,behavior:'instant'});}}
  new MutationObserver(sync).observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['open']});sync();
 })();
 
