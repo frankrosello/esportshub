@@ -169,15 +169,17 @@
   const list=schEl('div','hud-notification-list'),status=schEl('p','hud-inbox-status','Loading notifications…');status.setAttribute('role','status');const footer=schEl('footer',''),preferences=schEl('button','','Preferences');preferences.type='button';preferences.onclick=()=>void openNotificationPreferences(pop,scope);footer.append(preferences);pop.append(header,list,status,footer);document.querySelector('.top-actions').append(pop);bell.setAttribute('aria-expanded','true');dismiss.focus({preventScroll:true});
   try{
    await refreshNotifications(true);if(!pop.isConnected||scope!==profileScope()||pop.dataset.mode==='preferences')return;
+   function paint(){if(!pop.isConnected||scope!==profileScope()||pop.dataset.mode==='preferences')return;list.replaceChildren();footer.querySelector('[data-mark-all]')?.remove();
    const items=s.notifications?.items||[];status.textContent=items.length?'':"You're all caught up.";
    function counts(){const unread=items.filter(item=>!item.read).length;count.textContent=unread+' New';count.hidden=!unread;const badge=bell.querySelector('.eh-notification-badge');if(badge){badge.textContent=unread>99?'99+':String(unread);badge.hidden=!unread;}bell.setAttribute('aria-label','Open notifications, '+unread+' unread');}
    counts();
    for(const item of items){
-    const row=schEl('button','hud-notification-item'+(item.read?'':' is-unread'));row.type='button';row.append(schEl('strong','',item.title),schEl('span','',item.message));
+    const row=schEl('button','hud-notification-item'+(item.read?'':' is-unread'));row.type='button';row.dataset.notificationId=item.id;row.dataset.kind=item.kind;row.append(schEl('strong','',item.title),schEl('span','',item.message));
     const timestamp=item.createdAt||item.startsAt;if(timestamp&&Number.isFinite(Date.parse(timestamp))){const time=schEl('time','',Date.parse(timestamp)>Date.now()?fmt(timestamp):relative(timestamp));time.dateTime=timestamp;row.append(time);}
     row.onclick=async()=>{
      if(row.disabled)return;row.disabled=true;status.textContent='';
      try{
+      if(item.kind==='message'){close();await window.EsportsHubMessenger.openConversation(item.peerId);return;}
       if(!item.read){await api('/me/notifications/read','POST',{ids:[item.id]});if(scope!==profileScope())return;item.read=true;row.classList.remove('is-unread');counts();}
       const team=s.teams.find(team=>team.id===item.teamId);
       if(item.proposalId){if(!team)throw Error('Team access changed. Refresh the page.');close();await selectTeam(team);go('availability');$('practiceSuggestions')?.scrollIntoView({block:'start'});}
@@ -186,9 +188,11 @@
     };list.append(row);
    }
    const unread=items.filter(item=>!item.read);
-   if(unread.length){const all=schEl('button','','Mark All as Read');all.type='button';all.onclick=async()=>{all.disabled=true;try{await api('/me/notifications/read','POST',{ids:items.filter(item=>!item.read).map(item=>item.id)});if(scope!==profileScope())return;items.forEach(item=>item.read=true);list.querySelectorAll('.is-unread').forEach(row=>row.classList.remove('is-unread'));counts();all.remove();}catch(error){status.textContent=error.message;all.disabled=false;}};footer.prepend(all);}
+   if(unread.length){const all=schEl('button','','Mark All as Read');all.type='button';all.dataset.markAll='true';all.onclick=async()=>{all.disabled=true;try{await api('/me/notifications/read','POST',{ids:items.filter(item=>!item.read).map(item=>item.id)});if(scope!==profileScope())return;await refreshNotifications(true);}catch(error){status.textContent=error.message;all.disabled=false;}};footer.prepend(all);}
+   }pop.refreshItems=paint;paint();
   }catch(error){if(pop.isConnected)status.textContent='Could not load notifications: '+error.message;}
  };
+ document.addEventListener('eh-notifications-updated',()=>{$('hudNotificationPopover')?.refreshItems?.();});
  document.addEventListener('pointerdown',event=>{const pop=$('hudNotificationPopover');if(pop&&!pop.contains(event.target)&&!bell.contains(event.target))close();});
  document.addEventListener('keydown',event=>{if(event.key==='Escape'&&$('hudNotificationPopover')){close();bell.focus();}});
  $('roleViewSelect').addEventListener('change',close);document.addEventListener('hud-close-notifications',close);
