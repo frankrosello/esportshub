@@ -937,9 +937,10 @@ document.addEventListener('click',e=>{const button=e.target.closest('[data-dashb
 
 
 const pspSettings = document.createElement('section');
+pspSettings.className = 'eh-linked-devices';
 pspSettings.innerHTML = '<h3>Linked Devices</h3><p class="eh-muted">Link a device to the team selected on your dashboard, manage its sign-in, or export an offline schedule.</p>';
 const pspSettingsActions = document.createElement('div');
-pspSettingsActions.className = 'eh-row';
+pspSettingsActions.className = 'eh-device-actions';
 pspSettings.append(pspSettingsActions);
 
 // Fetch through the signed-in portal and package a read-only schedule for the PSP.
@@ -980,9 +981,11 @@ pspExportButton.addEventListener('click', async () => {
 const pspConnectButton = document.createElement('button');
 pspConnectButton.type = 'button';
 pspConnectButton.className = 'eh-btn tiny';
+pspConnectButton.classList.add('hud-primary');
 pspConnectButton.textContent = 'Link device';
 
 const pspRevokeButton = pspConnectButton.cloneNode();
+pspRevokeButton.classList.remove('hud-primary');
 pspRevokeButton.textContent = 'Disconnect all devices';
 
 
@@ -994,7 +997,8 @@ pspConnectButton.onclick = async () => {
  if (!/^[a-f0-9]{16}$/i.test(code.trim())) return notify('Enter the 16-character pairing code.', true);
  pspConnectButton.disabled = true;
  try {
-  await api('/psp/approve', 'POST', { code: code.trim(), teamId: team.id });
+  const privateAccess = window.confirm('Also allow this device to read and send direct messages and use private player concerns? Choose Cancel to link it with team features only. Anyone with a cookie-free link can use the access you grant.');
+  await api('/psp/approve', 'POST', { code: code.trim(), teamId: team.id, privateAccess });
   notify('Device approved. Open the schedule on your device.');
   await loadLinkedDevices();
  } catch (error) {
@@ -1005,6 +1009,7 @@ pspConnectButton.onclick = async () => {
 };
 
 const pspRenewButton = pspConnectButton.cloneNode();
+pspRenewButton.classList.remove('hud-primary');
 pspRenewButton.textContent = 'Refresh device timers';
 pspSettingsActions.append(pspConnectButton, pspRenewButton, pspRevokeButton, pspExportButton);
 pspRenewButton.onclick = async () => {
@@ -1035,6 +1040,7 @@ pspRevokeButton.onclick = async () => {
 
 
 const linkedDeviceList = document.createElement('div');
+linkedDeviceList.className = 'eh-device-list';
 linkedDeviceList.setAttribute('aria-live', 'polite');
 pspSettings.append(linkedDeviceList);
 
@@ -1050,14 +1056,19 @@ async function loadLinkedDevices() {
   const list = document.createElement('ul');
   for (const device of devices) {
    const item = document.createElement('li');
+   item.className = 'eh-device-row';
    const label = document.createElement('label');
+   label.className = 'eh-device-remember';
    const input = document.createElement('input');
    input.type = 'checkbox';
    input.checked = device.permanent;
-   const name = (device.team || 'Team') + ' · Device ' + device.id.slice(0, 8);
-   label.append(input, ' Keep signed in until disconnected');
-   item.append(schEl('strong', '', name), document.createElement('br'), label);
-   if (!device.permanent) item.append(schEl('p', 'eh-muted', 'Expires ' + fmt(device.expires)));
+   const details = schEl('div', 'eh-device-details');
+   const status = device.permanent ? 'Stays signed in' : 'Expires ' + fmt(device.expires);
+   details.append(schEl('strong', '', device.team || 'Team'),
+     schEl('span', 'eh-muted', 'Device ' + device.id.slice(0, 8) + ' · ' + status));
+   input.setAttribute('aria-label', 'Keep ' + (device.team || 'team') + ' device ' + device.id.slice(0, 8) + ' signed in until disconnected');
+   label.append(input, 'Keep signed in');
+   item.append(details, label);
    input.onchange = async () => {
     input.disabled = true;
     try {
