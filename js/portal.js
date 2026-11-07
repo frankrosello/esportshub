@@ -936,12 +936,17 @@ $('dashboardTeamSelect').addEventListener('change',async e=>{const select=e.targ
 document.addEventListener('click',e=>{const button=e.target.closest('[data-dashboard-go]');if(button)go(button.dataset.dashboardGo);});
 
 
+const pspSettings = document.createElement('section');
+pspSettings.innerHTML = '<h3>Linked Devices</h3><p class="eh-muted">Link a device to the team selected on your dashboard, manage its sign-in, or export an offline schedule.</p>';
+const pspSettingsActions = document.createElement('div');
+pspSettingsActions.className = 'eh-row';
+pspSettings.append(pspSettingsActions);
+
 // Fetch through the signed-in portal and package a read-only schedule for the PSP.
 const pspExportButton = document.createElement('button');
 pspExportButton.type = 'button';
 pspExportButton.className = 'eh-btn tiny';
 pspExportButton.textContent = 'Export PSP schedule';
-$('dashboardTeamSelect').after(pspExportButton);
 
 pspExportButton.addEventListener('click', async () => {
  const team = s.team;
@@ -975,22 +980,23 @@ pspExportButton.addEventListener('click', async () => {
 const pspConnectButton = document.createElement('button');
 pspConnectButton.type = 'button';
 pspConnectButton.className = 'eh-btn tiny';
-pspConnectButton.textContent = 'Connect PSP';
-pspExportButton.after(pspConnectButton);
+pspConnectButton.textContent = 'Link device';
+
 const pspRevokeButton = pspConnectButton.cloneNode();
-pspRevokeButton.textContent = 'Disconnect all PSPs';
-pspConnectButton.after(pspRevokeButton);
+pspRevokeButton.textContent = 'Disconnect all devices';
+
 
 pspConnectButton.onclick = async () => {
  const team = s.team;
  if (!team) return notify('Select a team first.', true);
- const code = window.prompt('Open ' + apiUrl('/psp') + ' on the PSP and enter its pairing code. This shares upcoming event names and times for ' + team.name + ' until you disconnect or the PSP goes eight hours without a successful refresh.');
+ const code = window.prompt('Open ' + apiUrl('/psp') + ' on the PSP and enter its pairing code. This lets the PSP view the schedule, roster, news, and any reports your current role can access, and submit your RSVP where permitted, for ' + team.name + ' until you disconnect or the PSP goes eight hours without a successful refresh.');
  if (!code) return;
  if (!/^[a-f0-9]{16}$/i.test(code.trim())) return notify('Enter the 16-character pairing code.', true);
  pspConnectButton.disabled = true;
  try {
   await api('/psp/approve', 'POST', { code: code.trim(), teamId: team.id });
-  notify('PSP approved. Open the schedule on your PSP.');
+  notify('Device approved. Open the schedule on your device.');
+  await loadLinkedDevices();
  } catch (error) {
   notify('PSP pairing failed: ' + error.message, true);
  } finally {
@@ -999,13 +1005,14 @@ pspConnectButton.onclick = async () => {
 };
 
 const pspRenewButton = pspConnectButton.cloneNode();
-pspRenewButton.textContent = 'Refresh PSP timer';
-pspConnectButton.after(pspRenewButton);
+pspRenewButton.textContent = 'Refresh device timers';
+pspSettingsActions.append(pspConnectButton, pspRenewButton, pspRevokeButton, pspExportButton);
 pspRenewButton.onclick = async () => {
  pspRenewButton.disabled = true;
  try {
   const result = await api('/psp/renew', 'POST', {});
-  notify(result.renewed ? 'Paired PSPs can connect for another eight hours.' : 'No active PSP sessions. Pair your PSP again.');
+  notify(result.renewed ? 'Active device timers refreshed.' : 'No active linked devices.');
+  await loadLinkedDevices();
  } catch (error) {
   notify('PSP timer refresh failed: ' + error.message, true);
  } finally {
@@ -1013,17 +1020,62 @@ pspRenewButton.onclick = async () => {
  }
 };
 pspRevokeButton.onclick = async () => {
- if (!window.confirm('Disconnect all PSP sessions linked to your account?')) return;
+ if (!window.confirm('Disconnect all devices linked to your account?')) return;
  pspRevokeButton.disabled = true;
  try {
   await api('/psp/revoke', 'POST', {});
-  notify('PSP sessions disconnected.');
+  notify('Linked devices disconnected.');
+  await loadLinkedDevices();
  } catch (error) {
   notify('PSP disconnect failed: ' + error.message, true);
  } finally {
   pspRevokeButton.disabled = false;
  }
 };
+
+
+const linkedDeviceList = document.createElement('div');
+linkedDeviceList.setAttribute('aria-live', 'polite');
+pspSettings.append(linkedDeviceList);
+
+async function loadLinkedDevices() {
+ linkedDeviceList.textContent = 'Loading linked devices…';
+ try {
+  const devices = await api('/psp/devices');
+  linkedDeviceList.replaceChildren();
+  if (!devices.length) {
+   linkedDeviceList.textContent = 'No active linked devices.';
+   return;
+  }
+  const list = document.createElement('ul');
+  for (const device of devices) {
+   const item = document.createElement('li');
+   const label = document.createElement('label');
+   const input = document.createElement('input');
+   input.type = 'checkbox';
+   input.checked = device.permanent;
+   const name = (device.team || 'Team') + ' · Device ' + device.id.slice(0, 8);
+   label.append(input, ' Keep signed in until disconnected');
+   item.append(schEl('strong', '', name), document.createElement('br'), label);
+   if (!device.permanent) item.append(schEl('p', 'eh-muted', 'Expires ' + fmt(device.expires)));
+   input.onchange = async () => {
+    input.disabled = true;
+    try {
+     await api('/psp/devices', 'POST', { id: device.id, permanent: input.checked });
+     await loadLinkedDevices();
+    } catch (error) {
+     input.checked = device.permanent;
+     input.disabled = false;
+     notify('Could not update linked device: ' + error.message, true);
+    }
+   };
+   list.append(item);
+  }
+  linkedDeviceList.append(list);
+ } catch (error) {
+  linkedDeviceList.textContent = 'Could not load linked devices: ' + error.message;
+ }
+}
 
 
 function pspScheduleHtml(teamName, events, now = new Date(), live = false) {
@@ -1173,9 +1225,10 @@ function setupSettingsTabs(){
  const layout=document.createElement('div');layout.className='eh-settings-layout';const nav=document.createElement('nav');nav.className='eh-settings-nav';nav.setAttribute('aria-label','Settings categories');
  const content=document.createElement('div');content.className='eh-settings-content';
  const account=document.createElement('article');account.className='eh-panel';account.innerHTML='<h2>Account & Security</h2><p class="eh-muted">Manage your email, password, and account security through Clerk.</p><button class="eh-btn" type="button" id="settingsAccountManage">Manage account</button>';
+ account.append(pspSettings);
  const appearance=document.createElement('article');appearance.className='eh-panel eh-appearance-settings';appearance.innerHTML='<span class="eh-kicker">MAKE YOURSELF COMFORTABLE</span><h2>Appearance</h2><p class="eh-muted">Choose how EsportsHub looks. Your profile colors and decorations keep their own settings.</p><fieldset class="eh-theme-options"><legend>Website Theme</legend></fieldset><p id="websiteThemeStatus" class="eh-muted" role="status">Saved for this browser. Changes apply immediately.</p>';for(const [value,label,detail]of [['cyber','Cyber','Purple and Cyber Blue'],['charcoal','Black / Dark Grey','Neutral charcoal with subtle silver accents'],['white','White','Clean white surfaces with purple and blue'],['system','System','Cyber at night, White in light mode']]){const option=document.createElement('label');option.className='eh-theme-choice';option.dataset.choice=value;const input=document.createElement('input');input.type='radio';input.name='websiteTheme';input.value=value;input.checked=websiteTheme===value;input.onchange=()=>setWebsiteTheme(value);const swatch=schEl('span','eh-theme-swatch');swatch.setAttribute('aria-hidden','true');swatch.innerHTML='<i></i><b></b><em></em>';option.append(swatch,input,schEl('strong','',label),schEl('small','',detail));appearance.querySelector('fieldset').append(option);}
  const categories=[['account','Account & Security',account],['appearance','Appearance',appearance],['profile','Edit Profile',profile],['dashboard','Dashboard',dashboard],['connection','Connection',connection]];
- for(const [id,label,panel] of categories){panel.dataset.settingsPanel=id;panel.id='settings-panel-'+id;const button=document.createElement('button');button.type='button';button.textContent=label;button.dataset.settingsTab=id;button.setAttribute('aria-controls',panel.id);button.onclick=()=>setSettingsTab(id);nav.append(button);content.append(panel);}
+ for(const [id,label,panel] of categories){panel.dataset.settingsPanel=id;panel.id='settings-panel-'+id;const button=document.createElement('button');button.type='button';button.textContent=label;button.dataset.settingsTab=id;button.setAttribute('aria-controls',panel.id);button.onclick=()=>{setSettingsTab(id);if(id==='account')void loadLinkedDevices();};nav.append(button);content.append(panel);}
  layout.append(nav,content);page.append(layout);$('settingsAccountManage').onclick=()=>window.Clerk?.openUserProfile?.();setSettingsTab('profile');syncConnectionSettingsAccess();
 }
 function syncConnectionSettingsAccess(){const allowed=Boolean(admin());const tab=document.querySelector('[data-settings-tab=connection]'),panel=document.querySelector('[data-settings-panel=connection]');if(tab)tab.hidden=!allowed;if(panel&&!allowed){const selected=!panel.hidden;panel.hidden=true;if(selected)setSettingsTab('profile');}}
