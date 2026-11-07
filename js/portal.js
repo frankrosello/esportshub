@@ -935,6 +935,128 @@ function renderMatchSyncPage(){
 $('dashboardTeamSelect').addEventListener('change',async e=>{const select=e.target;if(s.roleSwitching)return;const old=s.team?.id||'',team=(s.teams||[]).find(t=>t.id===select.value);if(!team)return;select.disabled=true;try{await selectTeam(team);go('dashboard');}catch(error){select.value=old;notify(error.message,true);}finally{select.disabled=!(s.teams||[]).length;}});
 document.addEventListener('click',e=>{const button=e.target.closest('[data-dashboard-go]');if(button)go(button.dataset.dashboardGo);});
 
+
+// Fetch through the signed-in portal and package a read-only schedule for the PSP.
+const pspExportButton = document.createElement('button');
+pspExportButton.type = 'button';
+pspExportButton.className = 'eh-btn tiny';
+pspExportButton.textContent = 'Export PSP schedule';
+$('dashboardTeamSelect').after(pspExportButton);
+
+pspExportButton.addEventListener('click', async () => {
+ const team = s.team;
+ if (!team) {
+  notify('Select a team first.', true);
+  return;
+ }
+ if (!window.confirm('Export this team schedule to an HTML file? Anyone with the file can see event names and times.')) return;
+ pspExportButton.disabled = true;
+ try {
+  const events = await api('/teams/' + encodeURIComponent(team.id) + '/events');
+  if (!Array.isArray(events)) throw Error('Invalid event list');
+  const html = pspScheduleHtml(team.name, events);
+  const url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'schedule.html';
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
+  notify('PSP schedule exported.');
+ } catch (error) {
+  notify('PSP export failed: ' + error.message, true);
+ } finally {
+  pspExportButton.disabled = false;
+ }
+});
+
+
+const pspConnectButton = document.createElement('button');
+pspConnectButton.type = 'button';
+pspConnectButton.className = 'eh-btn tiny';
+pspConnectButton.textContent = 'Connect PSP';
+pspExportButton.after(pspConnectButton);
+const pspRevokeButton = pspConnectButton.cloneNode();
+pspRevokeButton.textContent = 'Disconnect all PSPs';
+pspConnectButton.after(pspRevokeButton);
+
+pspConnectButton.onclick = async () => {
+ const team = s.team;
+ if (!team) return notify('Select a team first.', true);
+ const code = window.prompt('Open ' + apiUrl('/psp') + ' on the PSP and enter its pairing code. This shares upcoming event names and times for ' + team.name + ' until you disconnect or the PSP goes eight hours without a successful refresh.');
+ if (!code) return;
+ if (!/^[a-f0-9]{16}$/i.test(code.trim())) return notify('Enter the 16-character pairing code.', true);
+ pspConnectButton.disabled = true;
+ try {
+  await api('/psp/approve', 'POST', { code: code.trim(), teamId: team.id });
+  notify('PSP approved. Open the schedule on your PSP.');
+ } catch (error) {
+  notify('PSP pairing failed: ' + error.message, true);
+ } finally {
+  pspConnectButton.disabled = false;
+ }
+};
+
+const pspRenewButton = pspConnectButton.cloneNode();
+pspRenewButton.textContent = 'Refresh PSP timer';
+pspConnectButton.after(pspRenewButton);
+pspRenewButton.onclick = async () => {
+ pspRenewButton.disabled = true;
+ try {
+  const result = await api('/psp/renew', 'POST', {});
+  notify(result.renewed ? 'Paired PSPs can connect for another eight hours.' : 'No active PSP sessions. Pair your PSP again.');
+ } catch (error) {
+  notify('PSP timer refresh failed: ' + error.message, true);
+ } finally {
+  pspRenewButton.disabled = false;
+ }
+};
+pspRevokeButton.onclick = async () => {
+ if (!window.confirm('Disconnect all PSP sessions linked to your account?')) return;
+ pspRevokeButton.disabled = true;
+ try {
+  await api('/psp/revoke', 'POST', {});
+  notify('PSP sessions disconnected.');
+ } catch (error) {
+  notify('PSP disconnect failed: ' + error.message, true);
+ } finally {
+  pspRevokeButton.disabled = false;
+ }
+};
+
+
+function pspScheduleHtml(teamName, events, now = new Date(), live = false) {
+ const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({
+  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+ }[char]));
+ const eastern = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/New_York', month: 'short', day: 'numeric', year: 'numeric',
+  hour: 'numeric', minute: '2-digit', timeZoneName: 'short'
+ });
+ const upcoming = events
+  .filter(event => event && typeof event.starts_at === 'string')
+  .map(event => ({ event, time: new Date(event.starts_at) }))
+  .filter(({ time }) => time >= now)
+  .sort((a, b) => a.time - b.time);
+ const rows = upcoming.slice(0, 20).map(({ event, time }) =>
+  '<tr><td>' + escapeHtml(String(event.title || 'Untitled event').slice(0, 120)) +
+  '</td><td>' + escapeHtml(eastern.format(time)) + '</td></tr>'
+ ).join('\n');
+ return [
+  '<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">',
+  '<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8">',
+  live ? '<meta http-equiv="refresh" content="15">' : '',
+  '<title>EsportsHub PSP Schedule</title>',
+  '<style type="text/css">body{background:#10101a;color:#f1edff;font:14px Arial,sans-serif;margin:8px}h1{color:#e4d7ff;font-size:19px}table{width:100%;text-align:left;table-layout:fixed}th,td{padding:5px;border-bottom:1px solid #514172;overflow:hidden}</style>',
+  '</head><body><h1>' + escapeHtml(String(teamName || 'Team').slice(0, 100)) + ' / Schedule</h1>',
+  '<p>EsportsHub PSP &middot; ' + (live ? 'Last synced ' : 'Exported ') + escapeHtml(eastern.format(now)) + '</p>',
+  rows ? '<table cellspacing="0" summary="Upcoming team events"><tr><th scope="col">Event</th><th scope="col">Eastern time</th></tr>' + rows + '</table>' : '<p>No upcoming events.</p>',
+  upcoming.length > 20 ? '<p>Showing the next 20 events.</p>' : '',
+  '</body></html>'
+ ].join('\n');
+}
+
 async function loadAllScheduleEvents(){
  if(s.scheduleLoading)return;const request=(s.scheduleRequest||0)+1;s.scheduleRequest=request;s.scheduleLoading=true;s.scheduleErrors=[];renderSchedule();
  const teams=[...(s.teams||[])],events=[],errors=[];let next=0;
